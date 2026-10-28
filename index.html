@@ -11,13 +11,49 @@
             theme: {
                 extend: {
                     colors: {
-                        ayomi: {
-                            50: '#fdf4f6',
-                            100: '#fbe8ec',
-                            500: '#e11d48',
-                            600: '#be123c',
-                            700: '#9f1239',
-                            800: '#881337',
+                        mulberry: {
+                            50: '#fdf2f4',
+                            100: '#fbe5e9',
+                            200: '#f7ced6',
+                            300: '#f0a8b7',
+                            400: '#e3758d',
+                            500: '#d04968',
+                            600: '#b72e4f',
+                            700: '#94203c',
+                            800: '#581120',
+                            900: '#3b0915',
+                            950: '#22030b',
+                        },
+                        blush: {
+                            50: '#fdf8f9',
+                            100: '#fcf0f3',
+                            200: '#f9dbe3',
+                            300: '#f4b8c7',
+                            400: '#ec89a3',
+                            500: '#e05c80',
+                        },
+                        rosegold: {
+                            100: '#f9eee8',
+                            200: '#f2d7c9',
+                            300: '#e5b9a4',
+                            400: '#d89c82',
+                            500: '#c77d63',
+                            600: '#b06149',
+                        },
+                        champagne: {
+                            100: '#fbf7e8',
+                            200: '#f5ebc4',
+                            300: '#ebda96',
+                            400: '#dfc466',
+                            500: '#cfaa3b',
+                            600: '#ad8a28',
+                        },
+                        cream: {
+                            50: '#fdfbf7',
+                            100: '#f9f5ed',
+                            200: '#f2e9dc',
+                            300: '#e6d6c3',
+                            400: '#d6beaa',
                         }
                     }
                 }
@@ -25,9 +61,11 @@
         }
     </script>
     <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Pinyon+Script&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .font-cinzel { font-family: 'Cinzel', serif; }
+        .font-script { font-family: 'Pinyon Script', cursive; }
         @media print {
             .no-print { display: none !important; }
             .print-only { display: block !important; }
@@ -40,18 +78,17 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
-<body class="bg-slate-50 text-slate-800 min-h-screen">
+<body class="bg-gradient-to-br from-cream-100 via-blush-50 to-cream-200 text-mulberry-950 min-h-screen">
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
+        const { useState, useEffect, useMemo, useRef } = React;
 
         // ==========================================
         // INITIAL CONSTANTS & MASTER DATA
         // ==========================================
-        const EMPLOYEES = [
+        const INITIAL_EMPLOYEES = [
             { id: 'emp_1', name: 'Rere', role: 'Admin', defaultShift: 'Admin' },
             { id: 'emp_2', name: 'Vanka', role: 'Admin', defaultShift: 'Admin' },
             { id: 'emp_3', name: 'Belina', role: 'Terapis', defaultShift: 'Terapis' },
@@ -79,22 +116,96 @@
             '2026-11-25': { title: 'Maintenance & Sanitasi Klinik', type: 'Hari Klinik Tutup', isOpen: false, closurePolicy: 'NOT_COUNTED', note: 'Sterilisasi berkala fasilitas klinik' }
         };
 
-        // Standard Accounts (Authentication)
-        const ACCOUNTS = [
-            { username: 'manager', name: 'Manager Klinik', role: 'manager', pass: '@Adeeva0506' },
-            ...EMPLOYEES.map(emp => ({
-                username: emp.name.toLowerCase(),
-                name: emp.name,
-                role: 'employee',
-                pass: 'admin123',
-                employeeId: emp.id
-            }))
-        ];
-
         const MONTH_NAMES = [
             'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 
             'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
         ];
+
+        // ==========================================
+        // BEAUTY CLINIC FLOWER LOGO COMPONENT
+        // ==========================================
+        function ClinicLogo({ size = "md", showText = false, textLight = false }) {
+            const dimensions = {
+                sm: "w-9 h-9",
+                md: "w-12 h-12",
+                lg: "w-24 h-24",
+                xl: "w-32 h-32"
+            }[size] || "w-12 h-12";
+
+            return (
+                <div class="flex flex-col items-center justify-center inline-flex">
+                    <svg viewBox="0 0 400 400" class={dimensions} fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            {/* Rose Gold, Champagne Gold, Mulberry Burgundy & Blush Gradients */}
+                            <linearGradient id="roseGoldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stopColor="#E5B9A4" />
+                                <stop offset="50%" stopColor="#D89C82" />
+                                <stop offset="100%" stopColor="#C77D63" />
+                            </linearGradient>
+                            <linearGradient id="blushGrad" x1="100%" y1="0%" x2="0%" y2="100%">
+                                <stop offset="0%" stopColor="#FCF0F3" />
+                                <stop offset="50%" stopColor="#F4B8C7" />
+                                <stop offset="100%" stopColor="#EC89A3" />
+                            </linearGradient>
+                            <linearGradient id="champagneGoldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stopColor="#FDFBF7" />
+                                <stop offset="30%" stopColor="#F5EBC4" />
+                                <stop offset="70%" stopColor="#DFAA3B" />
+                                <stop offset="100%" stopColor="#AD8A28" />
+                            </linearGradient>
+                            <linearGradient id="mulberryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stopColor="#94203C" />
+                                <stop offset="50%" stopColor="#581120" />
+                                <stop offset="100%" stopColor="#22030B" />
+                            </linearGradient>
+                            <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
+                                <feGaussianBlur stdDeviation="8" result="blur" />
+                                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                            </filter>
+                        </defs>
+                        
+                        {/* Outer Glowing Ring */}
+                        <circle cx="200" cy="200" r="180" fill="url(#blushGrad)" opacity="0.25" />
+                        <circle cx="200" cy="200" r="170" stroke="url(#champagneGoldGrad)" strokeWidth="3.5" strokeDasharray="10 8" opacity="0.85" />
+
+                        {/* Outer Blossom Petals (8-way symmetric lotus) */}
+                        <g filter="url(#softGlow)">
+                            {/* Vertical & Horizontal Petals */}
+                            <path d="M 200,30 C 235,95 275,135 370,200 C 275,265 235,305 200,370 C 165,305 125,265 30,200 C 125,135 165,95 200,30 Z" fill="url(#mulberryGrad)" opacity="0.9" />
+                            {/* Diagonal Petals */}
+                            <path d="M 80,80 C 145,125 175,155 320,80 C 275,145 245,175 320,320 C 255,275 225,245 80,320 C 125,255 155,225 80,80 Z" fill="url(#roseGoldGrad)" opacity="0.8" />
+                        </g>
+
+                        {/* Inner Blooming Lotus Layers */}
+                        <path d="M 200,75 C 245,135 255,175 200,285 C 145,175 155,135 200,75 Z" fill="url(#champagneGoldGrad)" />
+                        <path d="M 120,135 C 180,165 200,195 200,290 C 135,270 100,210 120,135 Z" fill="url(#blushGrad)" opacity="0.9" />
+                        <path d="M 280,135 C 220,165 200,195 200,290 C 265,270 300,210 280,135 Z" fill="url(#blushGrad)" opacity="0.9" />
+
+                        {/* Center Floral Stamen (Champagne Gold Core) */}
+                        <circle cx="200" cy="200" r="38" fill="url(#champagneGoldGrad)" />
+                        <circle cx="200" cy="200" r="24" fill="#FFFFFF" opacity="0.6" />
+                        <circle cx="200" cy="200" r="14" fill="url(#mulberryGrad)" />
+
+                        {/* Mini Decorative Sparkles */}
+                        <circle cx="200" cy="45" r="4" fill="#DFAA3B" />
+                        <circle cx="355" cy="200" r="4" fill="#DFAA3B" />
+                        <circle cx="200" cy="355" r="4" fill="#DFAA3B" />
+                        <circle cx="45" cy="200" r="4" fill="#DFAA3B" />
+                    </svg>
+
+                    {showText && (
+                        <div class="text-center mt-2.5 space-y-0.5">
+                            <div class={`font-cinzel tracking-widest font-extrabold text-base sm:text-lg ${textLight ? 'text-champagne-200' : 'text-mulberry-950'}`}>
+                                PJ AYOMI
+                            </div>
+                            <div class={`font-script text-lg sm:text-xl font-normal ${textLight ? 'text-rosegold-300' : 'text-mulberry-700'}`}>
+                                Beaute Clinic
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
 
         // ==========================================
         // UTILITY FUNCTIONS & SCHEDULER ALGORITHM
@@ -117,36 +228,41 @@
             return days;
         }
 
-        // Automatic Constraint-Based Schedule Generator
-        function generateAutoSchedule(year, month, calendarEvents) {
+        // Automatic Constraint-Based Schedule Generator with Dynamic Employees
+        function generateAutoSchedule(year, month, calendarEvents, employeeList) {
             const monthDays = getDaysInMonth(year, month);
             const schedule = {};
+            const activeEmployees = employeeList && employeeList.length > 0 ? employeeList : INITIAL_EMPLOYEES;
             
-            // Track off-days count for each employee
-            const offCounts = {};
-            EMPLOYEES.forEach(emp => offCounts[emp.name] = 0);
-
-            // Filter available off-day dates (Wed, Sat, Sun)
+            // Filter candidate off dates (Allowed: Sun, Wed, Sat; Mon, Tue, Thu, Fri forbidden)
             const candidateOffDates = monthDays.filter(d => d.isAllowedOffDay && (calendarEvents[d.dateStr]?.isOpen !== false));
 
-            // Distribute 2 off days per employee randomly among candidate off dates
+            // Track off dates assigned to each employee
             const employeeOffDates = {};
-            EMPLOYEES.forEach(emp => {
+            activeEmployees.forEach(emp => {
                 employeeOffDates[emp.name] = [];
             });
 
-            // Smart Assignment for Off Days to ensure balanced distribution
-            EMPLOYEES.forEach(emp => {
-                // Pick 2 distinct days
+            // Assign 2 off days per employee ensuring constraints:
+            activeEmployees.forEach(emp => {
                 const shuffled = [...candidateOffDates].sort(() => 0.5 - Math.random());
                 let assigned = 0;
                 for (let d of shuffled) {
                     if (assigned >= 2) break;
-                    // Avoid grouping too many off days on single date
-                    const countOnDate = Object.values(employeeOffDates).filter(list => list.includes(d.dateStr)).length;
-                    if (countOnDate < 3) {
+                    
+                    const offListOnDate = Object.keys(employeeOffDates).filter(name => employeeOffDates[name].includes(d.dateStr));
+                    
+                    // Check max 2 employees total on this date
+                    if (offListOnDate.length >= 2) continue;
+
+                    // Check if another employee with the SAME role/department is already off on this date
+                    const sameRoleOff = offListOnDate.some(offName => {
+                        const existingEmp = activeEmployees.find(e => e.name === offName);
+                        return existingEmp && existingEmp.role === emp.role;
+                    });
+
+                    if (!sameRoleOff) {
                         employeeOffDates[emp.name].push(d.dateStr);
-                        offCounts[emp.name]++;
                         assigned++;
                     }
                 }
@@ -166,69 +282,110 @@
                 };
 
                 if (isClosed) {
-                    // Clinic is Closed
-                    EMPLOYEES.forEach(emp => {
+                    activeEmployees.forEach(emp => {
                         dailyRoster.assignments[emp.name] = 'KLINIK TUTUP';
                     });
                 } else {
-                    // 1. ADMIN RULES (Rere & Vanka)
+                    // 1. ADMIN RULES (Rere & Vanka or active admins)
+                    const admins = activeEmployees.filter(e => e.role === 'Admin').map(e => e.name);
                     const rereOff = employeeOffDates['Rere']?.includes(dateStr);
                     const vankaOff = employeeOffDates['Vanka']?.includes(dateStr);
 
-                    if (rereOff && vankaOff) {
-                        // Conflict fallback: Force Vanka to work
-                        dailyRoster.assignments['Rere'] = 'Libur';
-                        dailyRoster.assignments['Vanka'] = 'Full Shift';
-                    } else if (rereOff) {
-                        dailyRoster.assignments['Rere'] = 'Libur';
-                        dailyRoster.assignments['Vanka'] = 'Full Shift';
-                    } else if (vankaOff) {
-                        dailyRoster.assignments['Vanka'] = 'Libur';
-                        dailyRoster.assignments['Rere'] = 'Full Shift';
-                    } else {
-                        // Alternate Morning/Afternoon
-                        if (d.dayNum % 2 === 0) {
-                            dailyRoster.assignments['Rere'] = 'Pagi';
-                            dailyRoster.assignments['Vanka'] = 'Siang';
+                    if (admins.includes('Rere') && admins.includes('Vanka')) {
+                        if (rereOff) {
+                            dailyRoster.assignments['Rere'] = 'Libur';
+                            dailyRoster.assignments['Vanka'] = 'Full Shift';
+                        } else if (vankaOff) {
+                            dailyRoster.assignments['Vanka'] = 'Libur';
+                            dailyRoster.assignments['Rere'] = 'Full Shift';
                         } else {
-                            dailyRoster.assignments['Rere'] = 'Siang';
-                            dailyRoster.assignments['Vanka'] = 'Pagi';
+                            const isVankaFixedPagiDay = [1, 2, 4, 5].includes(d.dayOfWeek);
+                            if (isVankaFixedPagiDay) {
+                                dailyRoster.assignments['Vanka'] = 'Pagi';
+                                dailyRoster.assignments['Rere'] = 'Siang';
+                            } else {
+                                if (d.dayNum % 2 === 0) {
+                                    dailyRoster.assignments['Rere'] = 'Pagi';
+                                    dailyRoster.assignments['Vanka'] = 'Siang';
+                                } else {
+                                    dailyRoster.assignments['Rere'] = 'Siang';
+                                    dailyRoster.assignments['Vanka'] = 'Pagi';
+                                }
+                            }
                         }
+                    } else {
+                        // Fallback for custom added Admins
+                        admins.forEach((admName, idx) => {
+                            if (employeeOffDates[admName]?.includes(dateStr)) {
+                                dailyRoster.assignments[admName] = 'Libur';
+                            } else {
+                                dailyRoster.assignments[admName] = idx % 2 === 0 ? 'Pagi' : 'Siang';
+                            }
+                        });
                     }
 
                     // 2. THERAPIST RULES
-                    const therapists = ['Belina', 'Lala', 'Aura', 'Erlita', 'Ervina'];
-                    const workingTherapists = therapists.filter(t => !employeeOffDates[t]?.includes(dateStr));
-                    
+                    const therapists = activeEmployees.filter(e => e.role === 'Terapis').map(e => e.name);
+                    const offTherapist = therapists.find(t => employeeOffDates[t]?.includes(dateStr));
+
                     therapists.forEach(t => {
                         if (employeeOffDates[t]?.includes(dateStr)) {
                             dailyRoster.assignments[t] = 'Libur';
                         }
                     });
 
-                    // Assign Morning / Afternoon considering pair constraints
-                    // Pair 1: Belina & Aura | Pair 2: Lala & Erlita
-                    // Strategy: Assign Belina -> Pagi, Aura -> Siang (or vice versa based on date)
-                    let belinaShift = (d.dayNum % 2 === 1) ? 'Pagi' : 'Siang';
-                    let auraShift = belinaShift === 'Pagi' ? 'Siang' : 'Pagi';
+                    const workingTherapists = therapists.filter(t => !employeeOffDates[t]?.includes(dateStr));
 
-                    let lalaShift = (d.dayNum % 2 === 0) ? 'Pagi' : 'Siang';
-                    let erlitaShift = lalaShift === 'Pagi' ? 'Siang' : 'Pagi';
+                    if (offTherapist) {
+                        let pagiAssigns = [];
+                        let siangAssigns = [];
 
-                    let ervinaShift = (d.dayNum % 3 === 0) ? 'Pagi' : 'Siang';
+                        workingTherapists.forEach(t => {
+                            if (t === 'Belina') {
+                                if (d.dayNum % 2 === 1) siangAssigns.push(t); else pagiAssigns.push(t);
+                            } else if (t === 'Aura') {
+                                if (d.dayNum % 2 === 1) pagiAssigns.push(t); else siangAssigns.push(t);
+                            } else if (t === 'Lala') {
+                                if (d.dayNum % 2 === 0) siangAssigns.push(t); else pagiAssigns.push(t);
+                            } else if (t === 'Erlita') {
+                                if (d.dayNum % 2 === 0) pagiAssigns.push(t); else siangAssigns.push(t);
+                            } else {
+                                if (pagiAssigns.length < 2) pagiAssigns.push(t); else siangAssigns.push(t);
+                            }
+                        });
 
-                    if (!employeeOffDates['Belina']?.includes(dateStr)) dailyRoster.assignments['Belina'] = belinaShift;
-                    if (!employeeOffDates['Aura']?.includes(dateStr)) dailyRoster.assignments['Aura'] = auraShift;
-                    if (!employeeOffDates['Lala']?.includes(dateStr)) dailyRoster.assignments['Lala'] = lalaShift;
-                    if (!employeeOffDates['Erlita']?.includes(dateStr)) dailyRoster.assignments['Erlita'] = erlitaShift;
-                    if (!employeeOffDates['Ervina']?.includes(dateStr)) dailyRoster.assignments['Ervina'] = ervinaShift;
+                        while (pagiAssigns.length > 2 && siangAssigns.length < 2) {
+                            siangAssigns.push(pagiAssigns.pop());
+                        }
+                        while (siangAssigns.length > 2 && pagiAssigns.length < 2) {
+                            pagiAssigns.push(siangAssigns.pop());
+                        }
 
-                    // 3. OB RULE (Jalitut)
-                    if (employeeOffDates['Jalitut']?.includes(dateStr)) {
-                        dailyRoster.assignments['Jalitut'] = 'Libur';
+                        pagiAssigns.forEach(t => dailyRoster.assignments[t] = 'Pagi');
+                        siangAssigns.forEach(t => dailyRoster.assignments[t] = 'Siang');
                     } else {
-                        dailyRoster.assignments['Jalitut'] = 'OB';
+                        // Standard day: Therapists working
+                        therapists.forEach((tName, idx) => {
+                            if (!dailyRoster.assignments[tName]) {
+                                if (tName === 'Belina') dailyRoster.assignments[tName] = d.dayNum % 2 === 1 ? 'Siang' : 'Pagi';
+                                else if (tName === 'Aura') dailyRoster.assignments[tName] = d.dayNum % 2 === 1 ? 'Pagi' : 'Siang';
+                                else if (tName === 'Lala') dailyRoster.assignments[tName] = d.dayNum % 2 === 0 ? 'Siang' : 'Pagi';
+                                else if (tName === 'Erlita') dailyRoster.assignments[tName] = d.dayNum % 2 === 0 ? 'Pagi' : 'Siang';
+                                else if (tName === 'Ervina') dailyRoster.assignments[tName] = 'Siang';
+                                else dailyRoster.assignments[tName] = idx % 2 === 0 ? 'Pagi' : 'Siang';
+                            }
+                        });
                     }
+
+                    // 3. OTHER ROLES (OB, Doctor, etc.)
+                    const otherEmployees = activeEmployees.filter(e => !['Admin', 'Terapis'].includes(e.role));
+                    otherEmployees.forEach(emp => {
+                        if (employeeOffDates[emp.name]?.includes(dateStr)) {
+                            dailyRoster.assignments[emp.name] = 'Libur';
+                        } else {
+                            dailyRoster.assignments[emp.name] = emp.role === 'OB' ? 'OB' : 'Pagi';
+                        }
+                    });
                 }
 
                 schedule[dateStr] = dailyRoster;
@@ -238,16 +395,14 @@
         }
 
         // Rule Validation Engine
-        function validateScheduleRules(schedule, year, month, calendarEvents) {
+        function validateScheduleRules(schedule, year, month, calendarEvents, employeeList) {
             const errors = [];
             const warnings = [];
             const monthDays = getDaysInMonth(year, month);
+            const activeEmployees = employeeList || INITIAL_EMPLOYEES;
 
-            // 1. Check Off Days count and Days of Week per Employee
             const employeeOffCounts = {};
-            const invalidOffDayDates = [];
-
-            EMPLOYEES.forEach(emp => {
+            activeEmployees.forEach(emp => {
                 employeeOffCounts[emp.name] = 0;
             });
 
@@ -257,36 +412,54 @@
                 if (!roster) return;
 
                 const isClinicClosed = calendarEvents[dateStr] && !calendarEvents[dateStr].isOpen;
+                const offEmployees = activeEmployees.filter(emp => roster.assignments[emp.name] === 'Libur');
 
-                EMPLOYEES.forEach(emp => {
+                activeEmployees.forEach(emp => {
                     const shift = roster.assignments[emp.name];
                     if (shift === 'Libur') {
                         employeeOffCounts[emp.name]++;
-                        // Check day of week rule
-                        if (!d.isAllowedOffDay && !isClinicClosed) {
-                            errors.push(`Hari Libur terlarang: ${emp.name} libur pada ${d.dayName}, ${dateStr} (Libur hanya boleh Rabu, Sabtu, Minggu).`);
-                        }
                     }
                 });
 
-                // 2. Admin Rules Check
                 if (!isClinicClosed) {
+                    // Prohibited Off Days (Mon, Tue, Thu, Fri)
+                    if ([1, 2, 4, 5].includes(d.dayOfWeek)) {
+                        offEmployees.forEach(emp => {
+                            errors.push(`Hari Libur Terlarang: ${emp.name} libur pada ${d.dayName}, ${dateStr}. Pegawai TIDAK BOLEH libur pada Senin, Selasa, Kamis, & Jumat.`);
+                        });
+                    }
+
+                    // Max 2 Employees Off on Same Date
+                    if (offEmployees.length > 2) {
+                        errors.push(`Batas Maksimal Libur: Terdapat ${offEmployees.length} pegawai libur pada ${dateStr} (Ketentuan: Maksimal 2 pegawai).`);
+                    }
+
+                    // Off Employees Must Be From Different Divisions
+                    if (offEmployees.length === 2) {
+                        const role1 = offEmployees[0].role;
+                        const role2 = offEmployees[1].role;
+                        if (role1 === role2) {
+                            errors.push(`Konflik Divisi Libur: ${offEmployees[0].name} dan ${offEmployees[1].name} (${role1}) libur bersamaan pada ${dateStr}.`);
+                        }
+                    }
+
+                    // Admin Rules
                     const rereShift = roster.assignments['Rere'];
                     const vankaShift = roster.assignments['Vanka'];
 
-                    if (rereShift === 'Libur' && vankaShift === 'Libur') {
-                        errors.push(`Konflik Admin: Rere & Vanka libur bersamaan pada tanggal ${dateStr}.`);
+                    if (rereShift && vankaShift) {
+                        if (rereShift === 'Libur' && vankaShift === 'Libur') {
+                            errors.push(`Konflik Admin: Rere & Vanka libur bersamaan pada tanggal ${dateStr}.`);
+                        }
+                        if (rereShift === 'Libur' && vankaShift !== 'Full Shift') {
+                            errors.push(`Konflik Shift Admin: Rere libur pada ${dateStr}, Vanka HARUS Full Shift (08.00–21.00).`);
+                        }
+                        if (vankaShift === 'Libur' && rereShift !== 'Full Shift') {
+                            errors.push(`Konflik Shift Admin: Vanka libur pada ${dateStr}, Rere HARUS Full Shift (08.00–21.00).`);
+                        }
                     }
-                    if (rereShift === 'Libur' && vankaShift !== 'Full Shift') {
-                        errors.push(`Konflik Shift Admin: Rere libur pada ${dateStr}, Vanka HARUS Full Shift (08.00–21.00).`);
-                    }
-                    if (vankaShift === 'Libur' && rereShift !== 'Full Shift') {
-                        errors.push(`Konflik Shift Admin: Vanka libur pada ${dateStr}, Rere HARUS Full Shift (08.00–21.00).`);
-                    }
-                }
 
-                // 3. Therapist Pair Rules Check
-                if (!isClinicClosed) {
+                    // Forbidden Pair Rules for Therapists
                     const belinaShift = roster.assignments['Belina'];
                     const auraShift = roster.assignments['Aura'];
                     if (belinaShift && auraShift && belinaShift !== 'Libur' && belinaShift === auraShift) {
@@ -301,8 +474,7 @@
                 }
             });
 
-            // Off quota validation
-            EMPLOYEES.forEach(emp => {
+            activeEmployees.forEach(emp => {
                 if (employeeOffCounts[emp.name] !== 2) {
                     warnings.push(`Jatah Libur: ${emp.name} memiliki ${employeeOffCounts[emp.name]} hari libur (Ketentuan: Tepat 2 hari).`);
                 }
@@ -320,26 +492,56 @@
         // MAIN APPLICATION COMPONENT
         // ==========================================
         function App() {
-            // Auth State - null means not logged in (shows Login Screen FIRST)
+            // Dynamic Employees List State
+            const [employees, setEmployees] = useState(() => {
+                const saved = localStorage.getItem('ayomi_employees');
+                return saved ? JSON.parse(saved) : INITIAL_EMPLOYEES;
+            });
+
+            // Save employees to localStorage
+            useEffect(() => {
+                localStorage.setItem('ayomi_employees', JSON.stringify(employees));
+            }, [employees]);
+
+            // Form State for Adding New Employee
+            const [newEmpForm, setNewEmpForm] = useState({ name: '', role: 'Terapis', defaultShift: 'Terapis' });
+            const [deletingEmpId, setDeletingEmpId] = useState(null);
+
+            // Dynamic User Accounts
+            const accounts = useMemo(() => [
+                { username: 'manager', name: 'Manager Klinik', role: 'manager', pass: '@Adeeva0506' },
+                ...employees.map(emp => ({
+                    username: emp.name.toLowerCase().trim(),
+                    name: emp.name,
+                    role: 'employee',
+                    pass: 'admin123',
+                    employeeId: emp.id
+                }))
+            ], [employees]);
+
+            // Auth State
             const [currentUser, setCurrentUser] = useState(null);
             const [loginForm, setLoginForm] = useState({ username: '', pass: '' });
             const [authError, setAuthError] = useState('');
 
+            // File Upload Ref
+            const fileInputRef = useRef(null);
+
             // App Navigation State
-            const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard', 'schedule', 'recap', 'calendar', 'audit'
+            const [activeTab, setActiveTab] = useState('dashboard'); 
             const [year, setYear] = useState(2026);
-            const [month, setMonth] = useState(11); // 1-12
+            const [month, setMonth] = useState(11); 
 
             // Calendar & Events
             const [calendarEvents, setCalendarEvents] = useState(INITIAL_CALENDAR_EVENTS);
             const [editingEvent, setEditingEvent] = useState(null);
 
-            // Dynamic Schedules Store keyed by "YYYY-MM" (Runs effectively forever for any month/year)
+            // Dynamic Schedules Store keyed by "YYYY-MM"
             const [schedulesStore, setSchedulesStore] = useState(() => {
                 const initialKey = '2026-11';
                 return {
                     [initialKey]: {
-                        schedule: generateAutoSchedule(2026, 11, INITIAL_CALENDAR_EVENTS),
+                        schedule: generateAutoSchedule(2026, 11, INITIAL_CALENDAR_EVENTS, INITIAL_EMPLOYEES),
                         isPublished: true,
                         lastPublishedAt: '2026-10-28 09:00'
                     }
@@ -348,18 +550,16 @@
 
             const currentMonthKey = `${year}-${String(month).padStart(2, '0')}`;
 
-            // Helper to get active month's schedule state
             const currentScheduleData = useMemo(() => {
                 if (!schedulesStore[currentMonthKey]) {
-                    // Auto generate default schedule if switching to a new month/year
                     return {
-                        schedule: generateAutoSchedule(year, month, calendarEvents),
+                        schedule: generateAutoSchedule(year, month, calendarEvents, employees),
                         isPublished: false,
                         lastPublishedAt: null
                     };
                 }
                 return schedulesStore[currentMonthKey];
-            }, [schedulesStore, currentMonthKey, year, month, calendarEvents]);
+            }, [schedulesStore, currentMonthKey, year, month, calendarEvents, employees]);
 
             const schedule = currentScheduleData.schedule;
             const isPublished = currentScheduleData.isPublished;
@@ -370,7 +570,7 @@
                 { timestamp: '2026-10-28 09:00', user: 'Manager Klinik', action: 'Terbit Jadwal', details: 'Jadwal November 2026 resmi diterbitkan.' }
             ]);
 
-            // Date Row Edit Modal State (Manager Manual Off-Day & Shift Editor)
+            // Date Row Edit Modal State
             const [editingDateRow, setEditingDateRow] = useState(null);
 
             // Toast Alert State
@@ -380,13 +580,11 @@
             const [searchStaff, setSearchStaff] = useState('');
             const [filterShift, setFilterShift] = useState('ALL');
 
-            // Quick Toast Handler
             const triggerToast = (msg, type = 'info') => {
                 setToastMessage({ msg, type });
                 setTimeout(() => setToastMessage(null), 4000);
             };
 
-            // Audit Logger
             const logAction = (action, details) => {
                 const now = new Date();
                 const timeStr = now.toISOString().replace('T', ' ').substring(0, 16);
@@ -398,21 +596,73 @@
                 }, ...prev]);
             };
 
-            // Validation Evaluation
             const validationReport = useMemo(() => {
-                return validateScheduleRules(schedule, year, month, calendarEvents);
-            }, [schedule, year, month, calendarEvents]);
+                return validateScheduleRules(schedule, year, month, calendarEvents, employees);
+            }, [schedule, year, month, calendarEvents, employees]);
 
-            // Role Access Guard
             const checkManagerAccess = (actionName) => {
                 if (!currentUser || currentUser.role !== 'manager') {
-                    triggerToast("Akses ditolak. Anda tidak memiliki izin untuk mengubah jadwal.", "error");
+                    triggerToast("Akses ditolak. Anda tidak memiliki izin untuk mengelola data.", "error");
                     return false;
                 }
                 return true;
             };
 
-            // Helper to update active month's schedule object safely
+            // Employee Management Handlers
+            const handleAddEmployee = (e) => {
+                if (e) e.preventDefault();
+                if (!checkManagerAccess("Tambah Pegawai")) return;
+
+                const nameTrimmed = newEmpForm.name.trim();
+                if (!nameTrimmed) {
+                    triggerToast("Nama pegawai tidak boleh kosong.", "error");
+                    return;
+                }
+
+                if (employees.some(emp => emp.name.toLowerCase() === nameTrimmed.toLowerCase())) {
+                    triggerToast(`Pegawai dengan nama "${nameTrimmed}" sudah ada dalam daftar.`, "error");
+                    return;
+                }
+
+                const newId = `emp_${Date.now()}`;
+                const newEmp = {
+                    id: newId,
+                    name: nameTrimmed,
+                    role: newEmpForm.role,
+                    defaultShift: newEmpForm.role
+                };
+
+                const updatedList = [...employees, newEmp];
+                setEmployees(updatedList);
+                setNewEmpForm({ name: '', role: 'Terapis', defaultShift: 'Terapis' });
+
+                if (!isPublished) {
+                    const newSched = generateAutoSchedule(year, month, calendarEvents, updatedList);
+                    updateActiveSchedule(newSched, false, lastPublishedAt);
+                }
+
+                logAction("Tambah Pegawai", `Menambahkan pegawai baru: ${nameTrimmed} (${newEmpForm.role})`);
+                triggerToast(`Pegawai ${nameTrimmed} (${newEmpForm.role}) berhasil ditambahkan! Password default: admin123`, "success");
+            };
+
+            const handleDeleteEmployee = (empId) => {
+                if (!checkManagerAccess("Hapus Pegawai")) return;
+                const empToDelete = employees.find(e => e.id === empId);
+                if (!empToDelete) return;
+
+                const updatedList = employees.filter(e => e.id !== empId);
+                setEmployees(updatedList);
+                setDeletingEmpId(null);
+
+                if (!isPublished) {
+                    const newSched = generateAutoSchedule(year, month, calendarEvents, updatedList);
+                    updateActiveSchedule(newSched, false, lastPublishedAt);
+                }
+
+                logAction("Hapus Pegawai", `Menghapus pegawai: ${empToDelete.name} (${empToDelete.role})`);
+                triggerToast(`Pegawai ${empToDelete.name} berhasil dihapus dari sistem.`, "info");
+            };
+
             const updateActiveSchedule = (newSchedule, newIsPublished, newPublishedAt) => {
                 setSchedulesStore(prev => ({
                     ...prev,
@@ -424,25 +674,23 @@
                 }));
             };
 
-            // Handle Manual Generator (Protected: cannot change published schedule)
             const handleGenerateSchedule = () => {
                 if (!checkManagerAccess("Generate Schedule")) return;
                 if (isPublished) {
                     triggerToast("Jadwal bulan ini telah DITERBITKAN & TERKUNCI. Tarik jadwal terlebih dahulu jika ingin meng-generate ulang!", "error");
                     return;
                 }
-                const newSched = generateAutoSchedule(year, month, calendarEvents);
+                const newSched = generateAutoSchedule(year, month, calendarEvents, employees);
                 updateActiveSchedule(newSched, false, lastPublishedAt);
                 logAction("Generate Schedule", `Generator otomatis membuat draft jadwal baru bulan ${MONTH_NAMES[month - 1]} ${year}`);
                 triggerToast(`Jadwal otomatis ${MONTH_NAMES[month - 1]} ${year} berhasil digenerate! Silakan periksa validasi.`, "success");
             };
 
-            // Handle Manual Shift Edit (Protected: cannot change published schedule)
             const handleCellEdit = (dateStr, empName, newShift) => {
                 if (!checkManagerAccess("Edit Shift")) return;
 
                 if (isPublished) {
-                    triggerToast("🚫 JADWAL RESMI TERKUNCI! Jadwal yang sudah diterbitkan tidak boleh diubah secara langsung. Silakan tekan 'Tarik Jadwal' terlebih dahulu untuk melakukan revisi.", "error");
+                    triggerToast("🚫 JADWAL RESMI TERKUNCI! Silakan tekan 'Tarik Jadwal' terlebih dahulu untuk melakukan revisi.", "error");
                     return;
                 }
 
@@ -463,7 +711,6 @@
                 triggerToast(`Shift ${empName} pada ${dateStr} diperbarui.`, "info");
             };
 
-            // Handle Publish
             const handlePublishSchedule = () => {
                 if (!checkManagerAccess("Publish Schedule")) return;
                 if (validationReport.status === 'TIDAK VALID') {
@@ -476,7 +723,6 @@
                 triggerToast(`Jadwal resmi ${MONTH_NAMES[month - 1]} ${year} berhasil dipublikasikan untuk seluruh pegawai!`, "success");
             };
 
-            // Handle Unpublish / Tarik Jadwal (Manager Only)
             const handleUnpublishSchedule = () => {
                 if (!checkManagerAccess("Tarik Jadwal")) return;
                 updateActiveSchedule(schedule, false, lastPublishedAt);
@@ -484,10 +730,9 @@
                 triggerToast(`Jadwal resmi ${MONTH_NAMES[month - 1]} ${year} telah ditarik kembali! Status jadwal saat ini: Draft / Revisi.`, "info");
             };
 
-            // Handle Auth Login
             const handleLoginSubmit = (e) => {
                 if (e) e.preventDefault();
-                const acc = ACCOUNTS.find(a => a.username.toLowerCase() === loginForm.username.toLowerCase() && a.pass === loginForm.pass);
+                const acc = accounts.find(a => a.username.toLowerCase() === loginForm.username.toLowerCase().trim() && a.pass === loginForm.pass);
                 if (acc) {
                     setCurrentUser(acc);
                     setLoginForm({ username: '', pass: '' });
@@ -498,27 +743,14 @@
                 }
             };
 
-            // Quick Login Helper for smooth demo testing
-            const handleQuickLogin = (username, pass) => {
-                const acc = ACCOUNTS.find(a => a.username.toLowerCase() === username.toLowerCase() && a.pass === pass);
-                if (acc) {
-                    setCurrentUser(acc);
-                    setLoginForm({ username: '', pass: '' });
-                    setAuthError('');
-                    triggerToast(`Selamat datang, ${acc.name}! (Role: ${acc.role.toUpperCase()})`, "success");
-                }
-            };
-
-            // Handle Logout
             const handleLogout = () => {
                 setCurrentUser(null);
                 triggerToast("Anda telah keluar dari sistem.", "info");
             };
 
-            // Calculate Analytics / Recap Data
             const recapData = useMemo(() => {
                 const monthDays = getDaysInMonth(year, month);
-                return EMPLOYEES.map(emp => {
+                return employees.map(emp => {
                     let totalWorkDays = 0;
                     let totalOffDays = 0;
                     let pagiCount = 0;
@@ -572,27 +804,22 @@
                         offDatesList
                     };
                 });
-            }, [schedule, year, month]);
+            }, [schedule, year, month, employees]);
 
-            // Export to Excel Engine
             const exportToExcel = () => {
                 const days = getDaysInMonth(year, month);
                 const rows = days.map(d => {
                     const r = schedule[d.dateStr]?.assignments || {};
-                    return {
+                    const rowData = {
                         'Tanggal': d.dateStr,
-                        'Hari': d.dayName,
-                        'Admin (Rere)': r['Rere'] || '-',
-                        'Admin (Vanka)': r['Vanka'] || '-',
-                        'Belina (Terapis)': r['Belina'] || '-',
-                        'Lala (Terapis)': r['Lala'] || '-',
-                        'Aura (Terapis)': r['Aura'] || '-',
-                        'Erlita (Terapis)': r['Erlita'] || '-',
-                        'Ervina (Terapis)': r['Ervina'] || '-',
-                        'Jalitut (OB)': r['Jalitut'] || '-',
-                        'Status Klinik': schedule[d.dateStr]?.status === 'CLOSED' ? 'KLINIK TUTUP' : 'BUKA',
-                        'Catatan': schedule[d.dateStr]?.note || ''
+                        'Hari': d.dayName
                     };
+                    employees.forEach(emp => {
+                        rowData[`${emp.name} (${emp.role})`] = r[emp.name] || '-';
+                    });
+                    rowData['Status Klinik'] = schedule[d.dateStr]?.status === 'CLOSED' ? 'KLINIK TUTUP' : 'BUKA';
+                    rowData['Catatan'] = schedule[d.dateStr]?.note || '';
+                    return rowData;
                 });
 
                 const ws = XLSX.utils.json_to_sheet(rows);
@@ -602,116 +829,233 @@
                 logAction("Ekspor Excel", `Mengunduh file Excel jadwal bulan ${MONTH_NAMES[month-1]} ${year}`);
             };
 
-            // =========================================================
-            // 1. MANDATORY INITIAL LOGIN SCREEN (If not logged in)
-            // =========================================================
+            const downloadTemplateExcel = () => {
+                const days = getDaysInMonth(year, month);
+                const rows = days.map(d => {
+                    const r = schedule[d.dateStr]?.assignments || {};
+                    const rowData = {
+                        'Tanggal': d.dateStr,
+                        'Hari': d.dayName
+                    };
+                    employees.forEach(emp => {
+                        rowData[`${emp.name} (${emp.role})`] = r[emp.name] || (emp.role === 'Admin' ? 'Pagi' : 'Siang');
+                    });
+                    rowData['Status Klinik'] = schedule[d.dateStr]?.status === 'CLOSED' ? 'KLINIK TUTUP' : 'BUKA';
+                    rowData['Catatan'] = schedule[d.dateStr]?.note || '';
+                    return rowData;
+                });
+
+                const ws = XLSX.utils.json_to_sheet(rows);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, `Template_${MONTH_NAMES[month-1]}_${year}`);
+                XLSX.writeFile(wb, `Template_Jadwal_AYOMI_${month}_${year}.xlsx`);
+                logAction("Download Template", `Mengunduh template Excel jadwal bulan ${MONTH_NAMES[month-1]} ${year}`);
+                triggerToast("Template Excel berhasil diunduh!", "success");
+            };
+
+            const handleFileUpload = (e) => {
+                if (!checkManagerAccess("Upload Excel")) return;
+                if (isPublished) {
+                    triggerToast("🚫 JADWAL TERKUNCI! Silakan tarik jadwal terlebih dahulu sebelum mengunggah file Excel.", "error");
+                    if (fileInputRef.current) fileInputRef.current.value = "";
+                    return;
+                }
+
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    try {
+                        const data = evt.target.result;
+                        const workbook = XLSX.read(data, { type: 'binary' });
+                        const firstSheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[firstSheetName];
+                        const jsonRows = XLSX.utils.sheet_to_json(worksheet);
+
+                        if (!jsonRows || jsonRows.length === 0) {
+                            triggerToast("File Excel kosong atau format tidak sesuai.", "error");
+                            return;
+                        }
+
+                        const updatedSchedule = { ...schedule };
+                        let updatedCount = 0;
+
+                        jsonRows.forEach(row => {
+                            const dateVal = row['Tanggal'] || row['tanggal'] || row['DATE'] || row['Date'];
+                            if (!dateVal) return;
+
+                            let dateStr = String(dateVal).trim();
+
+                            if (updatedSchedule[dateStr]) {
+                                const statusKlinik = String(row['Status Klinik'] || row['status'] || '').toUpperCase();
+                                const isClosed = statusKlinik.includes('TUTUP') || statusKlinik.includes('CLOSED');
+
+                                const newAssignments = { ...(updatedSchedule[dateStr]?.assignments || {}) };
+
+                                employees.forEach(emp => {
+                                    const matchedKey = Object.keys(row).find(k => k.toLowerCase().includes(emp.name.toLowerCase()));
+                                    if (matchedKey) {
+                                        let val = String(row[matchedKey]).trim();
+                                        if (val.toLowerCase().includes('pagi')) val = 'Pagi';
+                                        else if (val.toLowerCase().includes('siang')) val = 'Siang';
+                                        else if (val.toLowerCase().includes('full')) val = 'Full Shift';
+                                        else if (val.toLowerCase().includes('ob')) val = 'OB';
+                                        else if (val.toLowerCase().includes('libur') || val.toLowerCase().includes('off')) val = 'Libur';
+                                        else if (val.toLowerCase().includes('tutup')) val = 'KLINIK TUTUP';
+
+                                        newAssignments[emp.name] = val;
+                                    }
+                                });
+
+                                updatedSchedule[dateStr] = {
+                                    dateStr,
+                                    dayName: updatedSchedule[dateStr]?.dayName || '',
+                                    status: isClosed ? 'CLOSED' : 'OPEN',
+                                    note: row['Catatan'] || row['catatan'] || updatedSchedule[dateStr]?.note || '',
+                                    assignments: newAssignments
+                                };
+                                updatedCount++;
+                            }
+                        });
+
+                        updateActiveSchedule(updatedSchedule, false, lastPublishedAt);
+                        logAction("Upload Excel", `Mengimpor ${updatedCount} baris jadwal dari file Excel (${file.name})`);
+                        triggerToast(`Berhasil mengimpor ${updatedCount} tanggal jadwal dari Excel! Silakan periksa status validasi.`, "success");
+                    } catch (err) {
+                        console.error(err);
+                        triggerToast("Gagal membaca file Excel. Pastikan format file .xlsx / .xls valid.", "error");
+                    } finally {
+                        if (fileInputRef.current) fileInputRef.current.value = "";
+                    }
+                };
+                reader.readAsBinaryString(file);
+            };
+
+            // MANDATORY INITIAL LOGIN SCREEN (If not logged in)
             if (!currentUser) {
                 return (
-                    <div class="min-h-screen bg-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
-                        {/* Background Decor */}
-                        <div class="absolute -top-32 -left-32 w-96 h-96 bg-ayomi-600/30 rounded-full filter blur-3xl"></div>
-                        <div class="absolute -bottom-32 -right-32 w-96 h-96 bg-rose-600/20 rounded-full filter blur-3xl"></div>
-
-                        <div class="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-8 space-y-6 relative z-10 border border-slate-100">
-                            <div class="text-center space-y-2">
-                                <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-ayomi-700 to-rose-500 text-white font-black text-3xl flex items-center justify-center mx-auto shadow-lg shadow-rose-500/30">
-                                    A
+                    <div class="min-h-screen bg-gradient-to-br from-mulberry-950 via-mulberry-900 to-mulberry-950 flex items-center justify-center p-4">
+                        <div class="bg-cream-50/95 backdrop-blur-xl rounded-3xl shadow-2xl max-w-md w-full p-8 space-y-6 border border-champagne-300/60">
+                            
+                            {/* BRANDING FLOWER LOGO */}
+                            <div class="text-center space-y-3">
+                                <ClinicLogo size="lg" showText={true} />
+                                <div class="text-xs text-mulberry-800 font-semibold pt-1 tracking-wide">
+                                    Employee Scheduling & Shift Management System
                                 </div>
-                                <h2 class="text-2xl font-black text-slate-900 tracking-tight">PJ AYOMI BEAUTE CLINIC - DAMPIT</h2>
-                                <p class="text-xs font-semibold text-rose-600 uppercase tracking-widest">Employee Scheduling System</p>
-                                <p class="text-xs text-slate-500">Silakan login untuk mengakses portal jadwal klinik</p>
                             </div>
 
                             {authError && (
-                                <div class="bg-red-50 text-red-700 text-xs p-3.5 rounded-xl border border-red-200 font-semibold text-center animate-shake">
-                                    ⚠️ {authError}
+                                <div class="bg-blush-100 border border-rosegold-300 text-mulberry-800 text-xs font-semibold p-3.5 rounded-2xl flex items-center space-x-2">
+                                    <span>⚠️</span>
+                                    <span>{authError}</span>
                                 </div>
                             )}
 
                             <form onSubmit={handleLoginSubmit} class="space-y-4">
                                 <div>
-                                    <label class="text-xs font-bold text-slate-700 block mb-1">Username</label>
+                                    <label class="text-xs font-bold text-mulberry-950 uppercase tracking-wider block mb-1">
+                                        Username Pengguna
+                                    </label>
                                     <input 
                                         type="text" 
                                         required
+                                        placeholder="Masukkan username..."
                                         value={loginForm.username}
-                                        onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
-                                        placeholder="Username (Manager / Nama Pegawai)"
-                                        class="w-full border border-slate-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-ayomi-600 outline-none transition"
+                                        onChange={(e) => setLoginForm(prev => ({ ...prev, username: e.target.value }))}
+                                        class="w-full border border-rosegold-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-champagne-500 focus:ring-2 focus:ring-champagne-200 font-medium bg-white"
                                     />
                                 </div>
 
                                 <div>
-                                    <label class="text-xs font-bold text-slate-700 block mb-1">Kata Sandi (Password)</label>
+                                    <label class="text-xs font-bold text-mulberry-950 uppercase tracking-wider block mb-1">
+                                        Kata Sandi / Password
+                                    </label>
                                     <input 
                                         type="password" 
                                         required
+                                        placeholder="Masukkan kata sandi..."
                                         value={loginForm.pass}
-                                        onChange={(e) => setLoginForm({ ...loginForm, pass: e.target.value })}
-                                        placeholder="••••••••"
-                                        class="w-full border border-slate-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-ayomi-600 outline-none transition"
+                                        onChange={(e) => setLoginForm(prev => ({ ...prev, pass: e.target.value }))}
+                                        class="w-full border border-rosegold-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-champagne-500 focus:ring-2 focus:ring-champagne-200 font-medium bg-white"
                                     />
                                 </div>
 
                                 <button 
                                     type="submit"
-                                    class="w-full bg-gradient-to-r from-ayomi-700 to-rose-600 hover:from-ayomi-800 hover:to-rose-700 text-white font-bold py-3.5 rounded-xl text-sm transition shadow-lg shadow-rose-900/20"
+                                    class="w-full bg-gradient-to-r from-rosegold-500 via-mulberry-700 to-mulberry-900 hover:from-rosegold-600 hover:to-mulberry-950 text-white font-bold py-3.5 rounded-xl text-sm transition shadow-lg shadow-rosegold-200 flex items-center justify-center space-x-2 border border-champagne-300/40"
                                 >
-                                    Masuk Ke Aplikasi
+                                    <span>🔐</span>
+                                    <span>Masuk ke Sistem Klinik</span>
                                 </button>
                             </form>
+
+                            <div class="text-center pt-4 border-t border-rosegold-200/60">
+                                <span class="text-[11px] text-mulberry-800 font-medium">
+                                    Sistem Otomasi Penjadwalan — PJ AYOMI BEAUTE CLINIC DAMPIT
+                                </span>
+                            </div>
                         </div>
                     </div>
                 );
             }
 
-            // =========================================================
-            // 2. MAIN APPLICATION INTERFACE (When Logged In)
-            // =========================================================
+            // MAIN DASHBOARD INTERFACE (FOR LOGGED IN USERS)
             return (
-                <div class="min-h-screen flex flex-col">
-                    {/* TOAST ALERT */}
-                    {toastMessage && (
-                        <div class={`fixed top-4 right-4 z-50 px-5 py-3 rounded-xl shadow-xl flex items-center space-x-3 text-white transition-all transform animate-bounce ${
-                            toastMessage.type === 'error' ? 'bg-red-600' : toastMessage.type === 'success' ? 'bg-emerald-600' : 'bg-blue-600'
-                        }`}>
-                            <span class="font-bold text-lg">
-                                {toastMessage.type === 'error' ? '⚠️' : toastMessage.type === 'success' ? '✅' : 'ℹ️'}
-                            </span>
-                            <span class="text-sm font-medium">{toastMessage.msg}</span>
-                        </div>
-                    )}
-
-                    {/* TOP NAVIGATION HEADER */}
-                    <header class="bg-gradient-to-r from-ayomi-800 via-ayomi-700 to-rose-900 text-white shadow-lg no-print">
-                        <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-                            <div class="flex items-center space-x-3">
-                                <div class="w-10 h-10 rounded-full bg-white text-ayomi-700 font-black text-xl flex items-center justify-center shadow-inner">
-                                    A
-                                </div>
+                <div class="min-h-screen pb-12">
+                    {/* TOP NAVIGATION BAR WITH DEEP MULBERRY & CHAMPAGNE VIBRANCY */}
+                    <header class="bg-gradient-to-r from-mulberry-950 via-mulberry-900 to-mulberry-950 text-white shadow-2xl sticky top-0 z-40 border-b border-champagne-400/30 no-print">
+                        <div class="max-w-7xl mx-auto px-4 py-3 flex flex-col md:flex-row items-center justify-between gap-3">
+                            
+                            {/* LOGO & TITLE */}
+                            <div class="flex items-center space-x-3.5">
+                                <ClinicLogo size="sm" />
                                 <div>
-                                    <h1 class="text-xl font-bold tracking-tight">PJ AYOMI BEAUTE CLINIC - DAMPIT</h1>
-                                    <p class="text-xs text-rose-200">Employee Scheduling System — Operational 08.00–21.00</p>
+                                    <h1 class="font-cinzel font-bold text-base sm:text-lg tracking-wider text-champagne-200 leading-tight">
+                                        PJ AYOMI BEAUTE CLINIC - DAMPIT
+                                    </h1>
+                                    <div class="text-[11px] text-blush-100/90 flex items-center space-x-2 font-medium">
+                                        <span>System Penjadwalan Pegawai</span>
+                                        <span>•</span>
+                                        <span class="bg-mulberry-800 text-champagne-200 border border-champagne-400/40 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase">{currentUser.role}</span>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div class="flex items-center space-x-4">
-                                {/* Role Badge */}
-                                <div class="text-right">
-                                    <div class="text-xs text-rose-200">Pengguna Aktif</div>
-                                    <div class="font-semibold text-sm flex items-center space-x-2">
-                                        <span>{currentUser.name}</span>
-                                        <span class={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
-                                            currentUser.role === 'manager' ? 'bg-amber-400 text-slate-900' : 'bg-rose-500 text-white'
-                                        }`}>
-                                            {currentUser.role}
-                                        </span>
-                                    </div>
+                            {/* PERIODE PICKER */}
+                            <div class="flex items-center space-x-2 bg-mulberry-950/90 p-1.5 rounded-2xl border border-champagne-400/40 shadow-inner">
+                                <span class="text-xs font-semibold text-champagne-200 pl-2">Periode:</span>
+                                <select 
+                                    value={month} 
+                                    onChange={(e) => setMonth(Number(e.target.value))}
+                                    class="bg-mulberry-900 text-champagne-100 text-xs font-bold rounded-xl px-2.5 py-1.5 focus:outline-none border border-champagne-400/30 cursor-pointer"
+                                >
+                                    {MONTH_NAMES.map((m, idx) => (
+                                        <option key={idx} value={idx + 1}>{m}</option>
+                                    ))}
+                                </select>
+                                <select 
+                                    value={year} 
+                                    onChange={(e) => setYear(Number(e.target.value))}
+                                    class="bg-mulberry-900 text-champagne-100 text-xs font-bold rounded-xl px-2.5 py-1.5 focus:outline-none border border-champagne-400/30 cursor-pointer"
+                                >
+                                    {[2024, 2025, 2026, 2027, 2028, 2029, 2030].map(y => (
+                                        <option key={y} value={y}>{y}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* USER ACCOUNT & LOGOUT */}
+                            <div class="flex items-center space-x-3">
+                                <div class="text-right hidden sm:block">
+                                    <div class="text-xs font-bold text-champagne-200">{currentUser.name}</div>
+                                    <div class="text-[10px] text-blush-100 uppercase tracking-wide">{currentUser.role === 'manager' ? 'Administrator' : 'Staf Pegawai'}</div>
                                 </div>
 
                                 <button 
                                     onClick={handleLogout}
-                                    class="bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg text-xs font-semibold border border-white/20 transition flex items-center space-x-1"
+                                    class="bg-gradient-to-r from-mulberry-700 to-mulberry-800 hover:from-mulberry-800 hover:to-mulberry-900 text-champagne-200 text-xs font-bold px-3.5 py-2 rounded-xl transition shadow-lg flex items-center space-x-1 border border-champagne-400/30"
                                 >
                                     <span>🚪</span>
                                     <span>Keluar</span>
@@ -719,182 +1063,157 @@
                             </div>
                         </div>
 
-                        {/* RBAC Employee Banner */}
-                        {currentUser.role === 'employee' && (
-                            <div class="bg-amber-500 text-slate-950 px-4 py-2 text-xs text-center font-medium shadow-inner flex items-center justify-center space-x-2">
-                                <span>🔒</span>
-                                <span><strong>Mode Pegawai (Read-Only):</strong> Anda hanya memiliki hak akses untuk melihat jadwal resmi yang telah diterbitkan oleh Manager.</span>
-                            </div>
-                        )}
-                    </header>
-
-                    {/* SUB-HEADER / NAVIGATION TABS & MONTH SELECTOR (FOREVER ACCESSIBLE) */}
-                    <nav class="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-20 no-print">
-                        <div class="max-w-7xl mx-auto px-4 flex flex-wrap items-center justify-between gap-3 py-2">
-                            <div class="flex space-x-1 overflow-x-auto">
-                                <button
+                        {/* LUXURIOUS TAB NAVIGATION */}
+                        <div class="bg-mulberry-950/95 border-t border-champagne-400/20 px-4 overflow-x-auto">
+                            <div class="max-w-7xl mx-auto flex space-x-2 py-1">
+                                <button 
                                     onClick={() => setActiveTab('dashboard')}
-                                    class={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${
-                                        activeTab === 'dashboard' ? 'bg-ayomi-50 text-ayomi-700 border border-ayomi-200' : 'text-slate-600 hover:bg-slate-100'
+                                    class={`px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center space-x-1.5 ${
+                                        activeTab === 'dashboard' ? 'bg-gradient-to-r from-rosegold-500 to-mulberry-700 text-white shadow-md border border-champagne-300/40' : 'text-blush-100/70 hover:text-white hover:bg-white/10'
                                     }`}
                                 >
-                                    📊 Dashboard
+                                    <span>📌</span>
+                                    <span>Ringkasan & Status</span>
                                 </button>
 
-                                <button
+                                <button 
                                     onClick={() => setActiveTab('schedule')}
-                                    class={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${
-                                        activeTab === 'schedule' ? 'bg-ayomi-50 text-ayomi-700 border border-ayomi-200' : 'text-slate-600 hover:bg-slate-100'
+                                    class={`px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center space-x-1.5 ${
+                                        activeTab === 'schedule' ? 'bg-gradient-to-r from-mulberry-800 to-mulberry-900 text-champagne-200 shadow-md border border-champagne-400/50' : 'text-blush-100/70 hover:text-white hover:bg-white/10'
                                     }`}
                                 >
-                                    📅 Tabel Jadwal Bulanan
+                                    <span>📅</span>
+                                    <span>Tabel Jadwal Bulanan</span>
                                 </button>
 
-                                <button
+                                <button 
                                     onClick={() => setActiveTab('recap')}
-                                    class={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${
-                                        activeTab === 'recap' ? 'bg-ayomi-50 text-ayomi-700 border border-ayomi-200' : 'text-slate-600 hover:bg-slate-100'
+                                    class={`px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center space-x-1.5 ${
+                                        activeTab === 'recap' ? 'bg-gradient-to-r from-champagne-500 to-rosegold-500 text-mulberry-950 shadow-md font-black' : 'text-blush-100/70 hover:text-white hover:bg-white/10'
                                     }`}
                                 >
-                                    📈 Rekap & Jam Kerja
+                                    <span>📊</span>
+                                    <span>Rekapitulasi Jam Kerja</span>
                                 </button>
 
                                 {currentUser.role === 'manager' && (
                                     <>
-                                        <button
-                                            onClick={() => setActiveTab('calendar')}
-                                            class={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${
-                                                activeTab === 'calendar' ? 'bg-ayomi-50 text-ayomi-700 border border-ayomi-200' : 'text-slate-600 hover:bg-slate-100'
+                                        <button 
+                                            onClick={() => setActiveTab('employees')}
+                                            class={`px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center space-x-1.5 ${
+                                                activeTab === 'employees' ? 'bg-gradient-to-r from-rosegold-600 to-mulberry-800 text-white shadow-md border border-champagne-300/30' : 'text-blush-100/70 hover:text-white hover:bg-white/10'
                                             }`}
                                         >
-                                            ⚙️ Kalender Hari Besar
+                                            <span>👥</span>
+                                            <span>Kelola Data Pegawai</span>
                                         </button>
 
-                                        <button
-                                            onClick={() => setActiveTab('audit')}
-                                            class={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${
-                                                activeTab === 'audit' ? 'bg-ayomi-50 text-ayomi-700 border border-ayomi-200' : 'text-slate-600 hover:bg-slate-100'
+                                        <button 
+                                            onClick={() => setActiveTab('calendar')}
+                                            class={`px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center space-x-1.5 ${
+                                                activeTab === 'calendar' ? 'bg-gradient-to-r from-champagne-600 to-rosegold-600 text-white shadow-md border border-champagne-300/30' : 'text-blush-100/70 hover:text-white hover:bg-white/10'
                                             }`}
                                         >
-                                            📜 Riwayat Perubahan
+                                            <span>⚙️</span>
+                                            <span>Kalender & Hari Besar</span>
+                                        </button>
+
+                                        <button 
+                                            onClick={() => setActiveTab('audit')}
+                                            class={`px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center space-x-1.5 ${
+                                                activeTab === 'audit' ? 'bg-gradient-to-r from-mulberry-900 to-slate-900 text-champagne-200 shadow-md border border-champagne-400/30' : 'text-blush-100/70 hover:text-white hover:bg-white/10'
+                                            }`}
+                                        >
+                                            <span>📜</span>
+                                            <span>Riwayat Audit Logs</span>
                                         </button>
                                     </>
                                 )}
                             </div>
+                        </div>
+                    </header>
 
-                            {/* Dynamic Month/Year Selector & Publish Lock Badge */}
-                            <div class="flex items-center space-x-3 text-xs">
-                                <div class="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
-                                    <span class="text-slate-500 font-bold px-1.5">Periode:</span>
-                                    <select 
-                                        value={month} 
-                                        onChange={(e) => setMonth(parseInt(e.target.value))}
-                                        class="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-bold text-slate-800"
-                                    >
-                                        {MONTH_NAMES.map((m, idx) => (
-                                            <option key={idx} value={idx + 1}>{m}</option>
-                                        ))}
-                                    </select>
-
-                                    <select 
-                                        value={year} 
-                                        onChange={(e) => setYear(parseInt(e.target.value))}
-                                        class="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-bold text-slate-800"
-                                    >
-                                        {[2024, 2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032, 2033, 2034, 2035].map(y => (
-                                            <option key={y} value={y}>{y}</option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                {isPublished ? (
-                                    <span class="bg-emerald-100 text-emerald-800 border border-emerald-300 px-2.5 py-1 rounded-full font-bold flex items-center space-x-1 shadow-sm">
-                                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                                        <span>🔒 TERBIT & TERKUNCI ({lastPublishedAt || 'Resmi'})</span>
-                                    </span>
-                                ) : (
-                                    <span class="bg-amber-100 text-amber-800 border border-amber-300 px-2.5 py-1 rounded-full font-bold flex items-center space-x-1 shadow-sm">
-                                        <span class="w-2 h-2 rounded-full bg-amber-500"></span>
-                                        <span>✏️ DRAFT / REVISI</span>
-                                    </span>
-                                )}
+                    {/* TOAST ALERT NOTIFICATION */}
+                    {toastMessage && (
+                        <div class="fixed bottom-5 right-5 z-50 no-print">
+                            <div class={`px-4 py-3 rounded-2xl shadow-2xl text-xs font-bold flex items-center space-x-2 text-white border ${
+                                toastMessage.type === 'error' ? 'bg-mulberry-800 border-rosegold-400' :
+                                toastMessage.type === 'success' ? 'bg-gradient-to-r from-rosegold-500 to-mulberry-700 border-champagne-300' : 'bg-mulberry-950 border-champagne-400'
+                            }`}>
+                                <span>{toastMessage.type === 'error' ? '🚨' : toastMessage.type === 'success' ? '✅' : 'ℹ️'}</span>
+                                <span>{toastMessage.msg}</span>
                             </div>
                         </div>
-                    </nav>
+                    )}
 
-                    {/* MAIN CONTENT CONTAINER */}
-                    <main class="flex-1 max-w-7xl w-full mx-auto px-4 py-6">
-
+                    {/* MAIN CONTENT AREA */}
+                    <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+                        
                         {/* ========================================================= */}
-                        {/* TAB 1: DASHBOARD                                         */}
+                        {/* TAB 1: DASHBOARD & SUMMARY STATUS                        */}
                         {/* ========================================================= */}
                         {activeTab === 'dashboard' && (
                             <div class="space-y-6">
-                                {/* Top KPI Summary Cards */}
-                                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-                                        <div>
-                                            <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Pegawai</div>
-                                            <div class="text-3xl font-extrabold text-slate-800 mt-1">8 Orang</div>
-                                            <div class="text-xs text-slate-500 mt-1">2 Admin, 5 Terapis, 1 OB</div>
-                                        </div>
-                                        <div class="w-12 h-12 bg-rose-50 text-rose-600 rounded-xl flex items-center justify-center font-bold text-xl">
-                                            👥
-                                        </div>
+                                {/* STATUS BANNER WITH ELEGANT ROSE GOLD & CREAM GRADIENT */}
+                                <div class="bg-gradient-to-r from-cream-50 via-blush-50 to-cream-100 p-6 rounded-3xl border border-rosegold-200/80 shadow-lg flex flex-col md:flex-row items-center justify-between gap-4 relative overflow-hidden">
+                                    <div class="absolute -right-10 -bottom-10 opacity-10 pointer-events-none">
+                                        <ClinicLogo size="xl" />
                                     </div>
 
-                                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                                    <div class="flex items-center space-x-4">
+                                        <div class={`p-4 rounded-2xl text-3xl font-black shadow-inner ${
+                                            isPublished ? 'bg-gradient-to-br from-rosegold-400 to-mulberry-700 text-white border border-champagne-300' : 'bg-gradient-to-br from-champagne-400 to-rosegold-500 text-mulberry-950 border border-champagne-300'
+                                        }`}>
+                                            {isPublished ? '📢' : '📝'}
+                                        </div>
                                         <div>
-                                            <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Status Validasi</div>
-                                            <div class="mt-1">
-                                                <span class={`text-base font-extrabold px-3 py-1 rounded-lg inline-block ${
-                                                    validationReport.status === 'VALID' ? 'bg-emerald-100 text-emerald-800' :
-                                                    validationReport.status === 'PERINGATAN' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'
+                                            <div class="flex items-center space-x-2">
+                                                <h2 class="font-extrabold text-mulberry-950 text-xl tracking-tight">
+                                                    Jadwal Bulan {MONTH_NAMES[month-1]} {year}
+                                                </h2>
+                                                <span class={`text-[11px] font-black px-3 py-1 rounded-full border shadow-sm ${
+                                                    isPublished ? 'bg-blush-100 text-mulberry-800 border-rosegold-300' : 'bg-champagne-100 text-mulberry-900 border-champagne-300'
                                                 }`}>
-                                                    {validationReport.status}
+                                                    {isPublished ? 'RESMI DITERBITKAN' : 'DRAFT / REVISI'}
                                                 </span>
                                             </div>
-                                            <div class="text-xs text-slate-500 mt-1">
-                                                {validationReport.errors.length} Pelanggaran | {validationReport.warnings.length} Catatan
-                                            </div>
-                                        </div>
-                                        <div class="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center font-bold text-xl">
-                                            ⚖️
-                                        </div>
-                                    </div>
-
-                                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-                                        <div>
-                                            <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Bulan Operasional</div>
-                                            <div class="text-2xl font-extrabold text-slate-800 mt-1">{MONTH_NAMES[month-1]} {year}</div>
-                                            <div class="text-xs text-slate-500 mt-1">{getDaysInMonth(year, month).length} Hari Kalender</div>
-                                        </div>
-                                        <div class="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center font-bold text-xl">
-                                            🗓️
+                                            <p class="text-xs text-slate-600 mt-1 font-medium">
+                                                {isPublished 
+                                                    ? `Diterbitkan pada: ${lastPublishedAt || '-'}. Seluruh pegawai dapat melihat jadwal resmi ini.`
+                                                    : 'Jadwal masih dalam bentuk draf. Hanya Manager yang dapat melakukan penyesuaian.'}
+                                            </p>
                                         </div>
                                     </div>
 
-                                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-                                        <div>
-                                            <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Jam Klinik</div>
-                                            <div class="text-xl font-extrabold text-slate-800 mt-1">08.00–21.00</div>
-                                            <div class="text-xs text-slate-500 mt-1">Shift Pagi, Siang & Full Shift</div>
-                                        </div>
-                                        <div class="w-12 h-12 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center font-bold text-xl">
-                                            🕒
+                                    {/* VALIDATION STATUS PILL */}
+                                    <div class="text-right flex items-center space-x-3">
+                                        <div class={`px-4 py-2.5 rounded-2xl text-xs font-black border shadow-sm ${
+                                            validationReport.status === 'VALID' ? 'bg-cream-100 text-mulberry-800 border-champagne-300' :
+                                            validationReport.status === 'PERINGATAN' ? 'bg-champagne-100 text-mulberry-900 border-champagne-300' :
+                                            'bg-blush-100 text-mulberry-900 border-rosegold-400'
+                                        }`}>
+                                            Status Aturan: {validationReport.status}
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* MANAGER CONTROLS & ACTION BAR */}
                                 {currentUser.role === 'manager' && (
-                                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                                    <div class="bg-cream-50/90 p-6 rounded-3xl border border-rosegold-200/70 shadow-md space-y-4">
+                                        <input 
+                                            type="file" 
+                                            ref={fileInputRef} 
+                                            onChange={handleFileUpload} 
+                                            accept=".xlsx, .xls" 
+                                            class="hidden" 
+                                        />
+
                                         <div class="flex items-center justify-between">
-                                            <h3 class="font-bold text-slate-800 flex items-center space-x-2">
+                                            <h3 class="font-extrabold text-mulberry-950 flex items-center space-x-2 text-base">
                                                 <span>⚡ Control Panel Manager</span>
                                             </h3>
                                             {isPublished && (
-                                                <div class="text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300 px-3 py-1 rounded-lg">
+                                                <div class="text-xs font-bold bg-champagne-100 text-mulberry-900 border border-champagne-300 px-3.5 py-1 rounded-full shadow-sm">
                                                     🔒 Jadwal Terbit & Terkunci — Pengubahan Jadwal Diberhentikan
                                                 </div>
                                             )}
@@ -904,19 +1223,43 @@
                                             <button 
                                                 onClick={handleGenerateSchedule}
                                                 disabled={isPublished}
-                                                class={`font-bold px-4 py-2.5 rounded-xl shadow-sm text-sm flex items-center space-x-2 transition ${
-                                                    isPublished ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-ayomi-600 hover:bg-ayomi-700 text-white'
+                                                class={`font-bold px-4 py-2.5 rounded-xl shadow-md text-xs flex items-center space-x-2 transition ${
+                                                    isPublished ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300' : 'bg-gradient-to-r from-rosegold-500 via-mulberry-700 to-mulberry-800 hover:from-rosegold-600 hover:to-mulberry-900 text-white shadow-rosegold-200 border border-champagne-300/30'
                                                 }`}
-                                                title={isPublished ? "Tarik jadwal terlebih dahulu untuk generate ulang" : "Generate jadwal otomatis"}
                                             >
                                                 <span>✨</span>
                                                 <span>Generate Jadwal Otomatis</span>
                                             </button>
 
+                                            <button 
+                                                onClick={downloadTemplateExcel}
+                                                class="bg-gradient-to-r from-champagne-500 to-rosegold-500 hover:from-champagne-600 hover:to-rosegold-600 text-mulberry-950 font-extrabold px-4 py-2.5 rounded-xl shadow-md border border-champagne-300 text-xs flex items-center space-x-2 transition"
+                                            >
+                                                <span>📥</span>
+                                                <span>Download Template Excel</span>
+                                            </button>
+
+                                            <button 
+                                                onClick={() => {
+                                                    if (isPublished) {
+                                                        triggerToast("🚫 JADWAL TERKUNCI! Silakan tarik jadwal terlebih dahulu.", "error");
+                                                        return;
+                                                    }
+                                                    if (fileInputRef.current) fileInputRef.current.click();
+                                                }}
+                                                disabled={isPublished}
+                                                class={`font-bold px-4 py-2.5 rounded-xl shadow-md text-xs flex items-center space-x-2 transition ${
+                                                    isPublished ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300' : 'bg-gradient-to-r from-rosegold-600 to-mulberry-800 hover:from-rosegold-700 hover:to-mulberry-900 text-white border border-champagne-300/30'
+                                                }`}
+                                            >
+                                                <span>📤</span>
+                                                <span>Upload Jadwal (Excel)</span>
+                                            </button>
+
                                             {!isPublished ? (
                                                 <button 
                                                     onClick={handlePublishSchedule}
-                                                    class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl shadow-sm text-sm flex items-center space-x-2 transition"
+                                                    class="bg-gradient-to-r from-champagne-500 via-rosegold-500 to-mulberry-700 hover:from-champagne-600 hover:to-mulberry-800 text-white font-black px-4 py-2.5 rounded-xl shadow-md shadow-champagne-200 text-xs flex items-center space-x-2 transition border border-champagne-300/40"
                                                 >
                                                     <span>📢</span>
                                                     <span>Terbitkan Jadwal Resmi</span>
@@ -924,7 +1267,7 @@
                                             ) : (
                                                 <button 
                                                     onClick={handleUnpublishSchedule}
-                                                    class="bg-amber-600 hover:bg-amber-700 text-white font-bold px-4 py-2.5 rounded-xl shadow-sm text-sm flex items-center space-x-2 transition"
+                                                    class="bg-gradient-to-r from-mulberry-700 to-mulberry-900 hover:from-mulberry-800 hover:to-mulberry-950 text-champagne-200 font-bold px-4 py-2.5 rounded-xl shadow-md shadow-mulberry-200 text-xs flex items-center space-x-2 transition border border-champagne-400/30"
                                                 >
                                                     <span>↩️</span>
                                                     <span>Tarik Jadwal (Batalkan Publikasi)</span>
@@ -933,7 +1276,7 @@
 
                                             <button 
                                                 onClick={exportToExcel}
-                                                class="bg-emerald-800 hover:bg-emerald-900 text-white font-bold px-4 py-2.5 rounded-xl shadow-sm text-sm flex items-center space-x-2 transition"
+                                                class="bg-gradient-to-r from-mulberry-900 to-mulberry-950 hover:from-mulberry-950 hover:to-black text-champagne-200 font-bold px-4 py-2.5 rounded-xl shadow-md text-xs flex items-center space-x-2 transition border border-champagne-400/20"
                                             >
                                                 <span>📊</span>
                                                 <span>Ekspor File Excel</span>
@@ -941,7 +1284,7 @@
 
                                             <button 
                                                 onClick={() => window.print()}
-                                                class="bg-slate-700 hover:bg-slate-800 text-white font-bold px-4 py-2.5 rounded-xl shadow-sm text-sm flex items-center space-x-2 transition"
+                                                class="bg-gradient-to-r from-rosegold-500 to-mulberry-800 hover:from-rosegold-600 hover:to-mulberry-900 text-white font-bold px-4 py-2.5 rounded-xl shadow-md text-xs flex items-center space-x-2 transition border border-champagne-300/30"
                                             >
                                                 <span>🖨️</span>
                                                 <span>Cetak Dokumen PDF</span>
@@ -952,23 +1295,23 @@
 
                                 {/* RULE DIAGNOSTIC & VIOLATION BOX */}
                                 {(validationReport.errors.length > 0 || validationReport.warnings.length > 0) && (
-                                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                                        <div class="bg-slate-900 text-white p-4 font-bold flex items-center justify-between">
+                                    <div class="bg-white rounded-3xl border border-rosegold-200 shadow-md overflow-hidden">
+                                        <div class="bg-gradient-to-r from-mulberry-950 via-mulberry-900 to-mulberry-950 text-champagne-200 p-4 font-bold flex items-center justify-between border-b border-champagne-400/30">
                                             <div class="flex items-center space-x-2">
                                                 <span>⚖️ Status Diagnostics System & Constraints Check</span>
                                             </div>
-                                            <span class="text-xs bg-slate-800 px-3 py-1 rounded-full text-slate-300 font-mono">
+                                            <span class="text-xs bg-mulberry-800 border border-champagne-400/30 px-3 py-1 rounded-full text-champagne-200 font-mono">
                                                 Rules Checked
                                             </span>
                                         </div>
 
-                                        <div class="p-5 space-y-4">
+                                        <div class="p-6 space-y-4">
                                             {validationReport.errors.length > 0 && (
-                                                <div class="bg-red-50 border border-red-200 rounded-xl p-4">
-                                                    <h4 class="font-bold text-red-800 text-sm flex items-center space-x-2 mb-2">
+                                                <div class="bg-blush-50 border border-rosegold-300 rounded-2xl p-4">
+                                                    <h4 class="font-bold text-mulberry-900 text-xs sm:text-sm flex items-center space-x-2 mb-2">
                                                         <span>🚨 Pelanggaran Aturan Wajib (Wajib Diperbaiki Sebelum Published):</span>
                                                     </h4>
-                                                    <ul class="list-disc list-inside text-xs text-red-700 space-y-1 font-medium">
+                                                    <ul class="list-disc list-inside text-xs text-mulberry-800 space-y-1 font-medium">
                                                         {validationReport.errors.map((err, idx) => (
                                                             <li key={idx}>{err}</li>
                                                         ))}
@@ -977,11 +1320,11 @@
                                             )}
 
                                             {validationReport.warnings.length > 0 && (
-                                                <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                                                    <h4 class="font-bold text-amber-800 text-sm flex items-center space-x-2 mb-2">
+                                                <div class="bg-champagne-100/70 border border-champagne-300 rounded-2xl p-4">
+                                                    <h4 class="font-bold text-mulberry-950 text-xs sm:text-sm flex items-center space-x-2 mb-2">
                                                         <span>⚠️ Catatan Evaluasi Jatah Libur & Beban Kerja:</span>
                                                     </h4>
-                                                    <ul class="list-disc list-inside text-xs text-amber-700 space-y-1 font-medium">
+                                                    <ul class="list-disc list-inside text-xs text-mulberry-900 space-y-1 font-medium">
                                                         {validationReport.warnings.map((warn, idx) => (
                                                             <li key={idx}>{warn}</li>
                                                         ))}
@@ -991,73 +1334,6 @@
                                         </div>
                                     </div>
                                 )}
-
-                                {/* TODAY'S ROSTER QUICK VIEW */}
-                                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                                    <h3 class="font-bold text-slate-800 mb-4 flex items-center justify-between">
-                                        <span>📍 Ringkasan Penugasan Tanggal 1 {MONTH_NAMES[month-1]} {year}</span>
-                                        <span class="text-xs font-normal text-slate-500">Klinik Operasional 08:00 - 21:00</span>
-                                    </h3>
-
-                                    {(() => {
-                                        const sampleDateKey = `${year}-${String(month).padStart(2, '0')}-01`;
-                                        const dayRoster = schedule[sampleDateKey]?.assignments || {};
-
-                                        return (
-                                            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                                <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                                                    <div class="text-xs font-bold text-blue-700 uppercase">Shift Pagi (08.00 - 16.00)</div>
-                                                    <div class="mt-2 space-y-1">
-                                                        {EMPLOYEES.filter(emp => dayRoster[emp.name] === 'Pagi').map(emp => (
-                                                            <div key={emp.name} class="text-sm font-semibold text-blue-900 flex items-center justify-between">
-                                                                <span>{emp.name}</span>
-                                                                <span class="text-[10px] bg-blue-200 text-blue-800 px-2 py-0.5 rounded-full">{emp.role}</span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-
-                                                <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
-                                                    <div class="text-xs font-bold text-emerald-700 uppercase">Shift Siang (13.00 - 21.00)</div>
-                                                    <div class="mt-2 space-y-1">
-                                                        {EMPLOYEES.filter(emp => dayRoster[emp.name] === 'Siang').map(emp => (
-                                                            <div key={emp.name} class="text-sm font-semibold text-emerald-900 flex items-center justify-between">
-                                                                <span>{emp.name}</span>
-                                                                <span class="text-[10px] bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded-full">{emp.role}</span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-
-                                                <div class="bg-purple-50 border border-purple-200 rounded-xl p-4">
-                                                    <div class="text-xs font-bold text-purple-700 uppercase">Full Shift / OB</div>
-                                                    <div class="mt-2 space-y-1">
-                                                        {EMPLOYEES.filter(emp => ['Full Shift', 'OB'].includes(dayRoster[emp.name])).map(emp => (
-                                                            <div key={emp.name} class="text-sm font-semibold text-purple-900 flex items-center justify-between">
-                                                                <span>{emp.name}</span>
-                                                                <span class="text-[10px] bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full">
-                                                                    {dayRoster[emp.name]}
-                                                                </span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-
-                                                <div class="bg-slate-100 border border-slate-200 rounded-xl p-4">
-                                                    <div class="text-xs font-bold text-slate-600 uppercase">Hari Libur</div>
-                                                    <div class="mt-2 space-y-1">
-                                                        {EMPLOYEES.filter(emp => dayRoster[emp.name] === 'Libur').map(emp => (
-                                                            <div key={emp.name} class="text-sm font-semibold text-slate-700 flex items-center justify-between">
-                                                                <span>{emp.name}</span>
-                                                                <span class="text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full">LIBUR</span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })()}
-                                </div>
                             </div>
                         )}
 
@@ -1066,43 +1342,32 @@
                         {/* ========================================================= */}
                         {activeTab === 'schedule' && (
                             <div class="space-y-4">
-                                {/* Employee Unpublished Warning Banner */}
-                                {currentUser.role === 'employee' && !isPublished && (
-                                    <div class="bg-amber-50 border-2 border-amber-400 p-4 rounded-xl text-amber-900 flex items-center space-x-3 shadow-sm">
-                                        <span class="text-2xl">⚠️</span>
-                                        <div>
-                                            <div class="font-bold text-sm">Jadwal Sedang Ditarik Kembali / Dalam Revisi</div>
-                                            <div class="text-xs text-amber-800">Manager sedang melakukan penyesuaian atau telah menarik kembali publikasi jadwal bulan ini. Informasi jadwal final akan tersedia setelah diterbitkan ulang oleh Manager.</div>
-                                        </div>
-                                    </div>
-                                )}
-
                                 {/* Lock Banner for Manager when published */}
                                 {currentUser.role === 'manager' && isPublished && (
-                                    <div class="bg-emerald-50 border-2 border-emerald-400 p-4 rounded-xl text-emerald-900 flex items-center justify-between shadow-sm">
+                                    <div class="bg-cream-100 border-2 border-champagne-400 p-4 rounded-2xl text-mulberry-950 flex items-center justify-between shadow-sm">
                                         <div class="flex items-center space-x-3">
                                             <span class="text-2xl">🔒</span>
                                             <div>
                                                 <div class="font-bold text-sm">Jadwal Telah Diterbitkan & Terkunci Dari Pengubahan</div>
-                                                <div class="text-xs text-emerald-800">Aturan Keamanan: Jadwal yang sudah resmi terbit tidak dapat diubah secara sengaja maupun tidak sengaja. Klik tombol <strong>Tarik Jadwal</strong> untuk melakukan revisi.</div>
+                                                <div class="text-xs text-mulberry-800">Aturan Keamanan: Jadwal yang sudah resmi terbit tidak dapat diubah secara sengaja maupun tidak sengaja. Klik tombol <strong>Tarik Jadwal</strong> untuk melakukan revisi.</div>
                                             </div>
                                         </div>
                                         <button 
                                             onClick={handleUnpublishSchedule}
-                                            class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-3 py-2 rounded-xl transition shadow"
+                                            class="bg-mulberry-800 hover:bg-mulberry-900 text-champagne-200 text-xs font-bold px-3 py-2 rounded-xl transition shadow border border-champagne-300/30"
                                         >
                                             ↩️ Tarik Jadwal
                                         </button>
                                     </div>
                                 )}
 
-                                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4 no-print">
+                                <div class="bg-white p-4 rounded-2xl border border-rosegold-200/60 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4 no-print">
                                     <div class="flex items-center space-x-3 w-full md:w-auto">
-                                        <div class="font-bold text-slate-800">Filter Shift:</div>
+                                        <div class="font-bold text-slate-800 text-xs">Filter Shift:</div>
                                         <select 
                                             value={filterShift} 
                                             onChange={(e) => setFilterShift(e.target.value)}
-                                            class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm bg-slate-50 font-medium"
+                                            class="border border-rosegold-200 rounded-xl px-3 py-1.5 text-xs bg-cream-50 font-semibold text-mulberry-950"
                                         >
                                             <option value="ALL">Semua Shift</option>
                                             <option value="Pagi">Shift Pagi</option>
@@ -1116,89 +1381,95 @@
                                             placeholder="Cari nama pegawai..."
                                             value={searchStaff}
                                             onChange={(e) => setSearchStaff(e.target.value)}
-                                            class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm bg-slate-50 font-medium"
+                                            class="border border-rosegold-200 rounded-xl px-3 py-1.5 text-xs bg-cream-50 font-medium"
                                         />
                                     </div>
 
-                                    {currentUser.role === 'manager' && !isPublished && (
-                                        <div class="text-xs text-slate-500 font-medium">
-                                            💡 Klik badge pegawai untuk ubah shift cepat, atau klik tombol ✏️ <strong>Edit Tanggal Ini</strong>.
+                                    {currentUser.role === 'manager' && (
+                                        <div class="flex items-center space-x-2">
+                                            <button 
+                                                onClick={downloadTemplateExcel}
+                                                class="bg-champagne-100 hover:bg-champagne-200 text-mulberry-900 border border-champagne-300 text-xs font-bold px-3 py-1.5 rounded-xl transition"
+                                            >
+                                                📥 Template
+                                            </button>
+                                            <button 
+                                                onClick={() => {
+                                                    if (isPublished) {
+                                                        triggerToast("🚫 JADWAL TERKUNCI! Tarik jadwal terlebih dahulu.", "error");
+                                                        return;
+                                                    }
+                                                    if (fileInputRef.current) fileInputRef.current.click();
+                                                }}
+                                                class="bg-blush-100 hover:bg-blush-200 text-mulberry-900 border border-rosegold-300 text-xs font-bold px-3 py-1.5 rounded-xl transition"
+                                            >
+                                                📤 Upload Excel
+                                            </button>
                                         </div>
                                     )}
                                 </div>
 
-                                {/* TABLE DISPLAY */}
-                                <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                                {/* TABLE DISPLAY WITH VIBRANT HEADERS */}
+                                <div class="bg-white rounded-3xl border border-rosegold-200 shadow-md overflow-hidden">
                                     <div class="overflow-x-auto">
                                         <table class="w-full text-left text-xs border-collapse">
                                             <thead>
-                                                <tr class="bg-slate-900 text-white font-bold uppercase tracking-wider">
-                                                    <th class="p-3 border-b border-slate-800">Tanggal</th>
-                                                    <th class="p-3 border-b border-slate-800">Hari</th>
-                                                    <th class="p-3 border-b border-slate-800">Admin Pagi</th>
-                                                    <th class="p-3 border-b border-slate-800">Admin Siang</th>
-                                                    <th class="p-3 border-b border-slate-800">Admin Full Shift</th>
-                                                    <th class="p-3 border-b border-slate-800">Terapis Pagi</th>
-                                                    <th class="p-3 border-b border-slate-800">Terapis Siang</th>
-                                                    <th class="p-3 border-b border-slate-800">OB</th>
-                                                    <th class="p-3 border-b border-slate-800">Pegawai Libur</th>
-                                                    <th class="p-3 border-b border-slate-800 text-center">Status & Aksi</th>
+                                                <tr class="bg-gradient-to-r from-mulberry-950 via-mulberry-900 to-mulberry-950 text-champagne-200 font-bold uppercase tracking-wider border-b border-champagne-400/30">
+                                                    <th class="p-3.5">Tanggal</th>
+                                                    <th class="p-3.5">Hari</th>
+                                                    <th class="p-3.5">Admin Pagi</th>
+                                                    <th class="p-3.5">Admin Siang / Full</th>
+                                                    <th class="p-3.5">Terapis Pagi</th>
+                                                    <th class="p-3.5">Terapis Siang</th>
+                                                    <th class="p-3.5">Staf Lain</th>
+                                                    <th class="p-3.5">Pegawai Libur</th>
+                                                    <th class="p-3.5 text-center">Aksi</th>
                                                 </tr>
                                             </thead>
-                                            <tbody class="divide-y divide-slate-200 font-medium">
+                                            <tbody class="divide-y divide-rosegold-100/60 font-medium">
                                                 {getDaysInMonth(year, month).map(d => {
                                                     const dateStr = d.dateStr;
                                                     const roster = schedule[dateStr]?.assignments || {};
                                                     const isClosed = schedule[dateStr]?.status === 'CLOSED';
-                                                    const note = schedule[dateStr]?.note || '';
 
-                                                    // Admin grouping
-                                                    const adminPagi = EMPLOYEES.filter(e => e.role === 'Admin' && roster[e.name] === 'Pagi').map(e => e.name);
-                                                    const adminSiang = EMPLOYEES.filter(e => e.role === 'Admin' && roster[e.name] === 'Siang').map(e => e.name);
-                                                    const adminFull = EMPLOYEES.filter(e => e.role === 'Admin' && roster[e.name] === 'Full Shift').map(e => e.name);
+                                                    const adminPagi = employees.filter(e => e.role === 'Admin' && roster[e.name] === 'Pagi').map(e => e.name);
+                                                    const adminSiang = employees.filter(e => e.role === 'Admin' && (roster[e.name] === 'Siang' || roster[e.name] === 'Full Shift')).map(e => `${e.name} (${roster[e.name]})`);
 
-                                                    // Therapist grouping
-                                                    const terapisPagi = EMPLOYEES.filter(e => e.role === 'Terapis' && roster[e.name] === 'Pagi').map(e => e.name);
-                                                    const terapisSiang = EMPLOYEES.filter(e => e.role === 'Terapis' && roster[e.name] === 'Siang').map(e => e.name);
+                                                    const terapisPagi = employees.filter(e => e.role === 'Terapis' && roster[e.name] === 'Pagi').map(e => e.name);
+                                                    const terapisSiang = employees.filter(e => e.role === 'Terapis' && roster[e.name] === 'Siang').map(e => e.name);
 
-                                                    // OB
-                                                    const obShift = roster['Jalitut'] || '-';
-
-                                                    // Off Staff
-                                                    const offStaff = EMPLOYEES.filter(e => roster[e.name] === 'Libur').map(e => e.name);
+                                                    const otherStaff = employees.filter(e => !['Admin', 'Terapis'].includes(e.role) && roster[e.name] !== 'Libur').map(e => `${e.name} (${roster[e.name]})`);
+                                                    const offStaff = employees.filter(e => roster[e.name] === 'Libur').map(e => e.name);
 
                                                     return (
-                                                        <tr key={dateStr} class={`hover:bg-slate-50 transition ${isClosed ? 'bg-amber-50/60' : ''}`}>
-                                                            <td class="p-3 font-bold text-slate-800 whitespace-nowrap">
+                                                        <tr key={dateStr} class={`hover:bg-blush-50/60 transition ${isClosed ? 'bg-champagne-100/60' : ''}`}>
+                                                            <td class="p-3.5 font-bold text-mulberry-950 whitespace-nowrap">
                                                                 {dateStr}
                                                             </td>
-                                                            <td class="p-3 font-semibold text-slate-600 whitespace-nowrap">
-                                                                <span class={`px-2 py-0.5 rounded ${d.isAllowedOffDay ? 'bg-emerald-100 text-emerald-800 font-bold' : 'text-slate-700'}`}>
+                                                            <td class="p-3.5 font-semibold text-slate-600 whitespace-nowrap">
+                                                                <span class={`px-2.5 py-1 rounded-lg ${d.isAllowedOffDay ? 'bg-champagne-100 text-mulberry-900 font-bold border border-champagne-300' : 'text-slate-700'}`}>
                                                                     {d.dayName}
                                                                 </span>
                                                             </td>
 
-                                                            {/* Admin Columns */}
-                                                            <td class="p-3">
+                                                            {/* Admin Pagi */}
+                                                            <td class="p-3.5">
                                                                 {isClosed ? '-' : adminPagi.map(name => (
                                                                     <ShiftBadge key={name} name={name} shift="Pagi" onEdit={currentUser.role === 'manager' && !isPublished ? (s) => handleCellEdit(dateStr, name, s) : null} />
                                                                 ))}
                                                             </td>
 
-                                                            <td class="p-3">
-                                                                {isClosed ? '-' : adminSiang.map(name => (
-                                                                    <ShiftBadge key={name} name={name} shift="Siang" onEdit={currentUser.role === 'manager' && !isPublished ? (s) => handleCellEdit(dateStr, name, s) : null} />
-                                                                ))}
-                                                            </td>
-
-                                                            <td class="p-3">
-                                                                {isClosed ? '-' : adminFull.map(name => (
-                                                                    <ShiftBadge key={name} name={name} shift="Full Shift" onEdit={currentUser.role === 'manager' && !isPublished ? (s) => handleCellEdit(dateStr, name, s) : null} />
-                                                                ))}
+                                                            {/* Admin Siang */}
+                                                            <td class="p-3.5">
+                                                                {isClosed ? '-' : adminSiang.map(item => {
+                                                                    const name = item.split(' ')[0];
+                                                                    const shft = item.includes('Full') ? 'Full Shift' : 'Siang';
+                                                                    return <ShiftBadge key={name} name={name} shift={shft} onEdit={currentUser.role === 'manager' && !isPublished ? (s) => handleCellEdit(dateStr, name, s) : null} />;
+                                                                })}
                                                             </td>
 
                                                             {/* Terapis Pagi */}
-                                                            <td class="p-3">
+                                                            <td class="p-3.5">
                                                                 {isClosed ? '-' : (
                                                                     <div class="flex flex-wrap gap-1">
                                                                         {terapisPagi.map(name => (
@@ -1209,7 +1480,7 @@
                                                             </td>
 
                                                             {/* Terapis Siang */}
-                                                            <td class="p-3">
+                                                            <td class="p-3.5">
                                                                 {isClosed ? '-' : (
                                                                     <div class="flex flex-wrap gap-1">
                                                                         {terapisSiang.map(name => (
@@ -1219,15 +1490,21 @@
                                                                 )}
                                                             </td>
 
-                                                            {/* OB */}
-                                                            <td class="p-3">
+                                                            {/* Other Staff */}
+                                                            <td class="p-3.5">
                                                                 {isClosed ? '-' : (
-                                                                    <ShiftBadge name="Jalitut" shift={obShift} onEdit={currentUser.role === 'manager' && !isPublished ? (s) => handleCellEdit(dateStr, 'Jalitut', s) : null} />
+                                                                    <div class="flex flex-wrap gap-1">
+                                                                        {otherStaff.map(item => {
+                                                                            const name = item.split(' ')[0];
+                                                                            const shft = roster[name] || 'OB';
+                                                                            return <ShiftBadge key={name} name={name} shift={shft} onEdit={currentUser.role === 'manager' && !isPublished ? (s) => handleCellEdit(dateStr, name, s) : null} />;
+                                                                        })}
+                                                                    </div>
                                                                 )}
                                                             </td>
 
                                                             {/* Pegawai Libur */}
-                                                            <td class="p-3">
+                                                            <td class="p-3.5">
                                                                 {offStaff.length > 0 ? (
                                                                     <div class="flex flex-wrap gap-1">
                                                                         {offStaff.map(name => (
@@ -1240,34 +1517,29 @@
                                                             </td>
 
                                                             {/* Status & Action */}
-                                                            <td class="p-3 text-center whitespace-nowrap">
+                                                            <td class="p-3.5 text-center whitespace-nowrap">
                                                                 <div class="flex items-center justify-center space-x-2">
                                                                     {isClosed ? (
-                                                                        <span class="bg-amber-200 text-amber-900 border border-amber-300 font-black px-2.5 py-1 rounded-md text-[11px]">
-                                                                            KLINIK TUTUP ({note || 'Hari Libur Resmi'})
+                                                                        <span class="bg-champagne-200 text-mulberry-950 border border-champagne-400 font-black px-2.5 py-1 rounded-lg text-[11px]">
+                                                                            KLINIK TUTUP
                                                                         </span>
                                                                     ) : (
-                                                                        <span class="bg-slate-100 text-slate-700 font-semibold px-2 py-0.5 rounded text-[11px]">
-                                                                            Operasional
-                                                                        </span>
-                                                                    )}
-
-                                                                    {currentUser.role === 'manager' && (
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                if (isPublished) {
-                                                                                    triggerToast("🚫 Jadwal ini telah DITERBITKAN & TERKUNCI. Tarik jadwal terlebih dahulu jika ingin mengedit manual.", "error");
-                                                                                } else {
-                                                                                    setEditingDateRow(dateStr);
-                                                                                }
-                                                                            }}
-                                                                            class={`no-print text-[10px] font-bold px-2 py-1 rounded shadow ${
-                                                                                isPublished ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-slate-800 hover:bg-slate-900 text-white'
-                                                                            }`}
-                                                                            title={isPublished ? "Terkunci (Jadwal Terbit)" : "Edit Manual Hari Libur & Shift Tanggal Ini"}
-                                                                        >
-                                                                            ✏️ Edit
-                                                                        </button>
+                                                                        currentUser.role === 'manager' && (
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    if (isPublished) {
+                                                                                        triggerToast("🚫 Jadwal ini telah DITERBITKAN. Tarik jadwal terlebih dahulu jika ingin mengedit manual.", "error");
+                                                                                    } else {
+                                                                                        setEditingDateRow(dateStr);
+                                                                                    }
+                                                                                }}
+                                                                                class={`no-print text-[11px] font-bold px-2.5 py-1.5 rounded-xl shadow transition ${
+                                                                                    isPublished ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-gradient-to-r from-rosegold-500 to-mulberry-700 hover:from-rosegold-600 hover:to-mulberry-800 text-white border border-champagne-300/30'
+                                                                                }`}
+                                                                            >
+                                                                                ✏️ Edit
+                                                                            </button>
+                                                                        )
                                                                     )}
                                                                 </div>
                                                             </td>
@@ -1282,57 +1554,167 @@
                         )}
 
                         {/* ========================================================= */}
-                        {/* TAB 3: RECAP & WORKING HOURS                             */}
+                        {/* TAB 3: EMPLOYEE MANAGEMENT MENU (MANAGER ONLY)          */}
+                        {/* ========================================================= */}
+                        {activeTab === 'employees' && currentUser.role === 'manager' && (
+                            <div class="space-y-6">
+                                <div class="bg-white p-6 rounded-3xl border border-rose-100 shadow-md space-y-6">
+                                    <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-4 border-rose-100 gap-2">
+                                        <div>
+                                            <h3 class="font-extrabold text-slate-900 text-lg flex items-center space-x-2">
+                                                <span>👥 Kelola Data & Jabatan Pegawai Klinik</span>
+                                            </h3>
+                                            <p class="text-xs text-slate-500">
+                                                Tambah pegawai baru atau hapus pegawai yang sudah tidak aktif. Username default untuk login pegawai baru adalah nama kecil pegawai dengan password <strong>admin123</strong>.
+                                            </p>
+                                        </div>
+                                        <span class="bg-gradient-to-r from-rose-500 to-pink-600 text-white text-xs font-black px-3.5 py-1.5 rounded-xl shadow self-start sm:self-auto">
+                                            Total: {employees.length} Pegawai
+                                        </span>
+                                    </div>
+
+                                    {/* FORM TAMBAH PEGAWAI */}
+                                    <form onSubmit={handleAddEmployee} class="bg-gradient-to-r from-rose-50/50 via-slate-50 to-pink-50/40 p-5 rounded-2xl border border-rose-200 grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
+                                        <div class="sm:col-span-2">
+                                            <label class="text-xs font-bold text-slate-700 block mb-1">
+                                                Nama Lengkap Pegawai
+                                            </label>
+                                            <input 
+                                                type="text"
+                                                required
+                                                placeholder="Masukkan nama pegawai..."
+                                                value={newEmpForm.name}
+                                                onChange={(e) => setNewEmpForm(prev => ({ ...prev, name: e.target.value }))}
+                                                class="w-full border border-slate-300 rounded-xl p-2.5 text-xs font-medium bg-white focus:outline-none focus:ring-2 focus:ring-ayomi-400"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label class="text-xs font-bold text-slate-700 block mb-1">
+                                                Jabatan / Divisi
+                                            </label>
+                                            <select 
+                                                value={newEmpForm.role}
+                                                onChange={(e) => setNewEmpForm(prev => ({ ...prev, role: e.target.value }))}
+                                                class="w-full border border-slate-300 rounded-xl p-2.5 text-xs font-bold bg-white focus:outline-none focus:ring-2 focus:ring-ayomi-400"
+                                            >
+                                                <option value="Admin">Admin Klinik</option>
+                                                <option value="Terapis">Terapis Beauty</option>
+                                                <option value="OB">Office Boy (OB)</option>
+                                                <option value="Dokter">Dokter Spesialis</option>
+                                                <option value="Kasir">Kasir</option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <button 
+                                                type="submit"
+                                                class="w-full bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-md shadow-rose-200 flex items-center justify-center space-x-1"
+                                            >
+                                                <span>➕</span>
+                                                <span>Tambah Pegawai</span>
+                                            </button>
+                                        </div>
+                                    </form>
+
+                                    {/* LIST TABLE PEGAWAI */}
+                                    <div class="overflow-x-auto border border-rose-100 rounded-2xl shadow-sm">
+                                        <table class="w-full text-left text-xs border-collapse">
+                                            <thead>
+                                                <tr class="bg-gradient-to-r from-slate-950 via-rose-950 to-purple-950 text-white font-bold uppercase tracking-wider">
+                                                    <th class="p-3.5">ID</th>
+                                                    <th class="p-3.5">Nama Pegawai</th>
+                                                    <th class="p-3.5">Jabatan</th>
+                                                    <th class="p-3.5">Username Login</th>
+                                                    <th class="p-3.5">Password Initial</th>
+                                                    <th class="p-3.5 text-center">Aksi / Hapus</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody class="divide-y divide-rose-50 font-medium">
+                                                {employees.map(emp => (
+                                                    <tr key={emp.id} class="hover:bg-rose-50/50">
+                                                        <td class="p-3.5 font-mono text-slate-400 text-[11px]">{emp.id}</td>
+                                                        <td class="p-3.5 font-bold text-slate-800 text-sm">{emp.name}</td>
+                                                        <td class="p-3.5">
+                                                            <span class={`px-3 py-1 rounded-full font-black text-[10px] ${
+                                                                emp.role === 'Admin' ? 'bg-purple-100 text-purple-800 border border-purple-200' :
+                                                                emp.role === 'Terapis' ? 'bg-pink-100 text-pink-800 border border-pink-200' :
+                                                                emp.role === 'OB' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-blue-100 text-blue-800 border border-blue-200'
+                                                            }`}>
+                                                                {emp.role}
+                                                            </span>
+                                                        </td>
+                                                        <td class="p-3.5 font-mono text-slate-600">{emp.name.toLowerCase()}</td>
+                                                        <td class="p-3.5 font-mono text-slate-400">admin123</td>
+                                                        <td class="p-3.5 text-center">
+                                                            <button 
+                                                                onClick={() => setDeletingEmpId(emp.id)}
+                                                                class="bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold px-3 py-1 rounded-xl text-xs transition"
+                                                            >
+                                                                🗑️ Hapus
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ========================================================= */}
+                        {/* TAB 4: RECAP & WORKING HOURS                             */}
                         {/* ========================================================= */}
                         {activeTab === 'recap' && (
                             <div class="space-y-6">
-                                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                                    <h3 class="font-bold text-slate-800 text-lg mb-2">
-                                        📈 Rekapitulasi Jam Kerja & Jatah Libur ({MONTH_NAMES[month-1]} {year})
+                                <div class="bg-white p-6 rounded-3xl border border-rose-100 shadow-md">
+                                    <h3 class="font-extrabold text-slate-900 text-lg mb-2">
+                                        📊 Rekapitulasi Jam Kerja & Jatah Libur ({MONTH_NAMES[month-1]} {year})
                                     </h3>
                                     <p class="text-xs text-slate-500 mb-4">
                                         Keterangan: Jam Efektif dihitung dari Total Jam Terjadwal dikurangi Durasi Istirahat Resmi (1 Jam per shift 8h, 2 Jam per Full Shift).
                                     </p>
 
-                                    <div class="overflow-x-auto">
+                                    <div class="overflow-x-auto rounded-2xl border border-rose-100 shadow-sm">
                                         <table class="w-full text-left text-xs border-collapse">
                                             <thead>
-                                                <tr class="bg-slate-900 text-white font-bold uppercase tracking-wider">
-                                                    <th class="p-3 border-b border-slate-800">Nama Pegawai</th>
-                                                    <th class="p-3 border-b border-slate-800">Jabatan</th>
-                                                    <th class="p-3 border-b border-slate-800">Hari Kerja</th>
-                                                    <th class="p-3 border-b border-slate-800">Hari Libur</th>
-                                                    <th class="p-3 border-b border-slate-800">Shift Pagi</th>
-                                                    <th class="p-3 border-b border-slate-800">Shift Siang</th>
-                                                    <th class="p-3 border-b border-slate-800">Full Shift</th>
-                                                    <th class="p-3 border-b border-slate-800">Jam Terjadwal</th>
-                                                    <th class="p-3 border-b border-slate-800">Jam Istirahat</th>
-                                                    <th class="p-3 border-b border-slate-800">Jam Efektif</th>
-                                                    <th class="p-3 border-b border-slate-800">Tanggal Libur Pegawai</th>
+                                                <tr class="bg-gradient-to-r from-slate-950 via-rose-950 to-purple-950 text-white font-bold uppercase tracking-wider">
+                                                    <th class="p-3.5">Nama Pegawai</th>
+                                                    <th class="p-3.5">Jabatan</th>
+                                                    <th class="p-3.5">Hari Kerja</th>
+                                                    <th class="p-3.5">Hari Libur</th>
+                                                    <th class="p-3.5">Shift Pagi</th>
+                                                    <th class="p-3.5">Shift Siang</th>
+                                                    <th class="p-3.5">Full Shift</th>
+                                                    <th class="p-3.5">Jam Terjadwal</th>
+                                                    <th class="p-3.5">Jam Istirahat</th>
+                                                    <th class="p-3.5">Jam Efektif</th>
+                                                    <th class="p-3.5">Tanggal Libur Pegawai</th>
                                                 </tr>
                                             </thead>
-                                            <tbody class="divide-y divide-slate-200 font-medium">
+                                            <tbody class="divide-y divide-rose-50 font-medium">
                                                 {recapData.map(r => (
-                                                    <tr key={r.name} class="hover:bg-slate-50">
-                                                        <td class="p-3 font-bold text-slate-800">{r.name}</td>
-                                                        <td class="p-3">
-                                                            <span class="bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-semibold text-[11px]">
+                                                    <tr key={r.name} class="hover:bg-rose-50/50">
+                                                        <td class="p-3.5 font-bold text-slate-800">{r.name}</td>
+                                                        <td class="p-3.5">
+                                                            <span class="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-lg font-bold text-[11px]">
                                                                 {r.role}
                                                             </span>
                                                         </td>
-                                                        <td class="p-3 font-semibold text-emerald-700">{r.totalWorkDays} Hari</td>
-                                                        <td class="p-3">
-                                                            <span class={`font-bold px-2 py-0.5 rounded ${r.totalOffDays === 2 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                                                        <td class="p-3.5 font-semibold text-emerald-700">{r.totalWorkDays} Hari</td>
+                                                        <td class="p-3.5">
+                                                            <span class={`font-bold px-2.5 py-1 rounded-lg ${r.totalOffDays === 2 ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-rose-100 text-rose-800 border border-rose-200'}`}>
                                                                 {r.totalOffDays} Hari
                                                             </span>
                                                         </td>
-                                                        <td class="p-3">{r.pagiCount}</td>
-                                                        <td class="p-3">{r.siangCount}</td>
-                                                        <td class="p-3">{r.fullShiftCount}</td>
-                                                        <td class="p-3 font-bold text-slate-800">{r.totalHours} Jam</td>
-                                                        <td class="p-3 text-slate-500">{r.breakHours} Jam</td>
-                                                        <td class="p-3 font-black text-ayomi-700">{r.effectiveHours} Jam</td>
-                                                        <td class="p-3 text-[11px] text-slate-600">
+                                                        <td class="p-3.5">{r.pagiCount}</td>
+                                                        <td class="p-3.5">{r.siangCount}</td>
+                                                        <td class="p-3.5">{r.fullShiftCount}</td>
+                                                        <td class="p-3.5 font-bold text-slate-800">{r.totalHours} Jam</td>
+                                                        <td class="p-3.5 text-slate-500">{r.breakHours} Jam</td>
+                                                        <td class="p-3.5 font-black text-rose-700">{r.effectiveHours} Jam</td>
+                                                        <td class="p-3.5 text-[11px] text-slate-600">
                                                             {r.offDatesList.join(' | ')}
                                                         </td>
                                                     </tr>
@@ -1345,11 +1727,11 @@
                         )}
 
                         {/* ========================================================= */}
-                        {/* TAB 4: CALENDAR & HOLIDAYS (MANAGER ONLY)                */}
+                        {/* TAB 5: CALENDAR & HOLIDAYS (MANAGER ONLY)                */}
                         {/* ========================================================= */}
                         {activeTab === 'calendar' && currentUser.role === 'manager' && (
                             <div class="space-y-6">
-                                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                                <div class="bg-white p-6 rounded-3xl border border-rose-100 shadow-md">
                                     <h3 class="font-bold text-slate-800 text-lg mb-2">
                                         ⚙️ Pengaturan Kalender, Hari Besar & Closure Policy
                                     </h3>
@@ -1359,7 +1741,7 @@
 
                                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         {/* Event Form */}
-                                        <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                                        <div class="bg-gradient-to-r from-rose-50/50 to-pink-50/40 p-5 rounded-2xl border border-rose-200 space-y-3">
                                             <h4 class="font-bold text-slate-700 text-sm">Tambah / Edit Tanggal Khusus</h4>
                                             
                                             <div>
@@ -1368,7 +1750,7 @@
                                                     type="date"
                                                     value={editingEvent?.dateStr || `${year}-${String(month).padStart(2,'0')}-15`}
                                                     onChange={(e) => setEditingEvent(prev => ({ ...prev, dateStr: e.target.value }))}
-                                                    class="w-full border border-slate-300 rounded-lg p-2 text-sm bg-white"
+                                                    class="w-full border border-slate-300 rounded-xl p-2.5 text-xs bg-white font-medium"
                                                 />
                                             </div>
 
@@ -1379,7 +1761,7 @@
                                                     placeholder="Contoh: Maintenance Alat / Hari Besar Islam"
                                                     value={editingEvent?.title || ''}
                                                     onChange={(e) => setEditingEvent(prev => ({ ...prev, title: e.target.value }))}
-                                                    class="w-full border border-slate-300 rounded-lg p-2 text-sm bg-white"
+                                                    class="w-full border border-slate-300 rounded-xl p-2.5 text-xs bg-white font-medium"
                                                 />
                                             </div>
 
@@ -1388,7 +1770,7 @@
                                                 <select 
                                                     value={editingEvent?.type || 'Hari Libur Nasional'}
                                                     onChange={(e) => setEditingEvent(prev => ({ ...prev, type: e.target.value }))}
-                                                    class="w-full border border-slate-300 rounded-lg p-2 text-sm bg-white"
+                                                    class="w-full border border-slate-300 rounded-xl p-2.5 text-xs bg-white font-bold"
                                                 >
                                                     <option value="Hari Besar Keagamaan Islam">Hari Besar Keagamaan Islam</option>
                                                     <option value="Hari Besar Keagamaan Kristen">Hari Besar Keagamaan Kristen</option>
@@ -1403,28 +1785,13 @@
                                                 <button
                                                     type="button"
                                                     onClick={() => setEditingEvent(prev => ({ ...prev, isOpen: !prev?.isOpen }))}
-                                                    class={`px-3 py-1 rounded-lg text-xs font-bold ${
-                                                        editingEvent?.isOpen !== false ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'
+                                                    class={`px-3.5 py-1.5 rounded-xl text-xs font-bold shadow ${
+                                                        editingEvent?.isOpen !== false ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'
                                                     }`}
                                                 >
                                                     {editingEvent?.isOpen !== false ? 'KLINIK BUKA' : 'KLINIK TUTUP'}
                                                 </button>
                                             </div>
-
-                                            {editingEvent?.isOpen === false && (
-                                                <div class="bg-amber-100 p-3 rounded-lg border border-amber-300 text-xs text-amber-900 space-y-2">
-                                                    <div class="font-bold">Dampak terhadap Jatah Libur Pegawai:</div>
-                                                    <select 
-                                                        value={editingEvent?.closurePolicy || 'COUNT_AS_OFF'}
-                                                        onChange={(e) => setEditingEvent(prev => ({ ...prev, closurePolicy: e.target.value }))}
-                                                        class="w-full border border-amber-400 rounded p-1.5 text-xs bg-white"
-                                                    >
-                                                        <option value="COUNT_AS_OFF">1. Dihitung sebagai jatah libur pegawai</option>
-                                                        <option value="NOT_COUNTED">2. Tidak dihitung jatah libur pribadi</option>
-                                                        <option value="CUSTOM">3. Dikecualikan (Kebijakan Khusus)</option>
-                                                    </select>
-                                                </div>
-                                            )}
 
                                             <button 
                                                 onClick={() => {
@@ -1446,7 +1813,7 @@
                                                     triggerToast("Kalender hari besar berhasil diperbarui!", "success");
                                                     setEditingEvent(null);
                                                 }}
-                                                class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 rounded-lg text-xs transition"
+                                                class="w-full bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-md shadow-rose-200"
                                             >
                                                 Simpan Tanggal Khusus
                                             </button>
@@ -1460,13 +1827,13 @@
                                                 {Object.keys(calendarEvents).map(dateKey => {
                                                     const ev = calendarEvents[dateKey];
                                                     return (
-                                                        <div key={dateKey} class="p-3 bg-white border border-slate-200 rounded-xl flex items-center justify-between">
+                                                        <div key={dateKey} class="p-3.5 bg-white border border-rose-100 rounded-2xl flex items-center justify-between shadow-sm">
                                                             <div>
                                                                 <div class="font-bold text-sm text-slate-800">{dateKey} — {ev.title}</div>
                                                                 <div class="text-xs text-slate-500">{ev.type}</div>
                                                             </div>
                                                             <div class="flex items-center space-x-2">
-                                                                <span class={`text-[10px] px-2 py-0.5 rounded font-bold ${ev.isOpen ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                                                                <span class={`text-[10px] px-2.5 py-1 rounded-lg font-bold ${ev.isOpen ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-rose-100 text-rose-800 border border-rose-200'}`}>
                                                                     {ev.isOpen ? 'BUKA' : 'TUTUP'}
                                                                 </span>
                                                                 <button 
@@ -1476,7 +1843,7 @@
                                                                         setCalendarEvents(copy);
                                                                         logAction("Hapus Tanggal", `Hapus tanggal khusus ${dateKey}`);
                                                                     }}
-                                                                    class="text-xs text-red-600 hover:text-red-800 font-bold px-2 py-1"
+                                                                    class="text-xs text-rose-600 hover:text-rose-800 font-bold px-2 py-1"
                                                                 >
                                                                     Hapus
                                                                 </button>
@@ -1492,38 +1859,38 @@
                         )}
 
                         {/* ========================================================= */}
-                        {/* TAB 5: AUDIT TRAIL LOGS (MANAGER ONLY)                   */}
+                        {/* TAB 6: AUDIT TRAIL LOGS (MANAGER ONLY)                   */}
                         {/* ========================================================= */}
                         {activeTab === 'audit' && currentUser.role === 'manager' && (
-                            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
-                                <h3 class="font-bold text-slate-800 text-lg mb-2">
+                            <div class="bg-white p-6 rounded-3xl border border-rose-100 shadow-md space-y-4">
+                                <h3 class="font-extrabold text-slate-900 text-lg mb-2">
                                     📜 Riwayat Perubahan & Audit Trail System
                                 </h3>
                                 <p class="text-xs text-slate-500 mb-4">
                                     Mencatat seluruh aksi pengubahan jadwal, kalender, dan publikasi oleh pengguna.
                                 </p>
 
-                                <div class="overflow-x-auto">
+                                <div class="overflow-x-auto rounded-2xl border border-rose-100 shadow-sm">
                                     <table class="w-full text-left text-xs border-collapse">
                                         <thead>
-                                            <tr class="bg-slate-900 text-white font-bold uppercase tracking-wider">
-                                                <th class="p-3">Waktu (Timestamp)</th>
-                                                <th class="p-3">Pengguna</th>
-                                                <th class="p-3">Jenis Aksi</th>
-                                                <th class="p-3">Detail Perubahan</th>
+                                            <tr class="bg-gradient-to-r from-slate-950 via-rose-950 to-purple-950 text-white font-bold uppercase tracking-wider">
+                                                <th class="p-3.5">Waktu (Timestamp)</th>
+                                                <th class="p-3.5">Pengguna</th>
+                                                <th class="p-3.5">Jenis Aksi</th>
+                                                <th class="p-3.5">Detail Perubahan</th>
                                             </tr>
                                         </thead>
-                                        <tbody class="divide-y divide-slate-200">
+                                        <tbody class="divide-y divide-rose-50">
                                             {auditLogs.map((log, index) => (
-                                                <tr key={index} class="hover:bg-slate-50">
-                                                    <td class="p-3 font-mono text-slate-600">{log.timestamp}</td>
-                                                    <td class="p-3 font-semibold text-slate-800">{log.user}</td>
-                                                    <td class="p-3">
-                                                        <span class="bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded text-[10px]">
+                                                <tr key={index} class="hover:bg-rose-50/50">
+                                                    <td class="p-3.5 font-mono text-slate-600">{log.timestamp}</td>
+                                                    <td class="p-3.5 font-semibold text-slate-800">{log.user}</td>
+                                                    <td class="p-3.5">
+                                                        <span class="bg-blue-100 text-blue-800 border border-blue-200 font-bold px-2.5 py-1 rounded-lg text-[10px]">
                                                             {log.action}
                                                         </span>
                                                     </td>
-                                                    <td class="p-3 text-slate-700">{log.details}</td>
+                                                    <td class="p-3.5 text-slate-700">{log.details}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -1534,17 +1901,46 @@
 
                     </main>
 
+                    {/* CONFIRMATION DELETE EMPLOYEE MODAL */}
+                    {deletingEmpId && (
+                        <div class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                            <div class="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 space-y-4 text-center border border-rose-100">
+                                <div class="text-3xl">⚠️</div>
+                                <h3 class="text-base font-extrabold text-slate-900">
+                                    Hapus Pegawai Ini?
+                                </h3>
+                                <p class="text-xs text-slate-600">
+                                    Apakah Anda yakin ingin menghapus <strong>{employees.find(e => e.id === deletingEmpId)?.name}</strong>? Tindakan ini akan menghapus akun login dan memperbarui daftar roster.
+                                </p>
+                                <div class="flex items-center space-x-2 pt-2">
+                                    <button 
+                                        onClick={() => setDeletingEmpId(null)}
+                                        class="w-1/2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl text-xs transition"
+                                    >
+                                        Batal
+                                    </button>
+                                    <button 
+                                        onClick={() => handleDeleteEmployee(deletingEmpId)}
+                                        class="w-1/2 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-md shadow-rose-200"
+                                    >
+                                        Ya, Hapus
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* MANAGER MANUAL OFF-DAY & SHIFT EDITOR MODAL FOR SPECIFIC DATE */}
                     {editingDateRow && (
-                        <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                            <div class="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-6 space-y-5">
-                                <div class="flex items-center justify-between border-b pb-3 border-slate-200">
+                        <div class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                            <div class="bg-white rounded-3xl shadow-2xl max-w-xl w-full p-6 space-y-5 border border-rose-100">
+                                <div class="flex items-center justify-between border-b pb-3 border-rose-100">
                                     <div>
-                                        <h3 class="text-lg font-bold text-slate-900">
+                                        <h3 class="text-lg font-extrabold text-slate-900">
                                             ✏️ Edit Penentuan Shift & Hari Libur Manual
                                         </h3>
                                         <p class="text-xs text-slate-500">
-                                            Tanggal: <strong class="text-ayomi-700">{editingDateRow}</strong>
+                                            Tanggal: <strong class="text-rose-700">{editingDateRow}</strong>
                                         </p>
                                     </div>
                                     <button 
@@ -1556,10 +1952,10 @@
                                 </div>
 
                                 <div class="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
-                                    {EMPLOYEES.map(emp => {
+                                    {employees.map(emp => {
                                         const currentShift = schedule[editingDateRow]?.assignments[emp.name] || 'Pagi';
                                         return (
-                                            <div key={emp.name} class="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
+                                            <div key={emp.name} class="p-3.5 bg-rose-50/40 border border-rose-100 rounded-2xl flex items-center justify-between">
                                                 <div>
                                                     <div class="font-bold text-sm text-slate-800">{emp.name}</div>
                                                     <div class="text-xs text-slate-500">{emp.role}</div>
@@ -1569,7 +1965,7 @@
                                                     <select
                                                         value={currentShift}
                                                         onChange={(e) => handleCellEdit(editingDateRow, emp.name, e.target.value)}
-                                                        class={`px-3 py-1.5 rounded-lg text-xs font-bold border ${
+                                                        class={`px-3 py-1.5 rounded-xl text-xs font-bold border shadow-sm ${
                                                             currentShift === 'Libur' ? 'bg-rose-100 text-rose-800 border-rose-300' :
                                                             currentShift === 'Pagi' ? 'bg-blue-100 text-blue-800 border-blue-300' :
                                                             currentShift === 'Siang' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
@@ -1589,10 +1985,10 @@
                                     })}
                                 </div>
 
-                                <div class="pt-3 border-t border-slate-200 flex justify-end">
+                                <div class="pt-3 border-t border-rose-100 flex justify-end">
                                     <button 
                                         onClick={() => setEditingDateRow(null)}
-                                        class="bg-slate-900 hover:bg-slate-800 text-white font-bold px-5 py-2.5 rounded-xl text-xs transition shadow"
+                                        class="bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white font-bold px-6 py-2.5 rounded-xl text-xs transition shadow-md shadow-rose-200"
                                     >
                                         Selesai & Simpan Perubahan
                                     </button>
@@ -1605,22 +2001,22 @@
         }
 
         // ==========================================
-        // SUB-COMPONENTS
+        // VIBRANT SHIFT BADGE SUB-COMPONENT
         // ==========================================
         function ShiftBadge({ name, shift, onEdit }) {
             const shiftStyles = {
-                'Pagi': 'bg-blue-100 text-blue-800 border-blue-300',
-                'Siang': 'bg-emerald-100 text-emerald-800 border-emerald-300',
-                'Full Shift': 'bg-purple-100 text-purple-800 border-purple-300',
-                'OB': 'bg-indigo-100 text-indigo-800 border-indigo-300',
-                'Libur': 'bg-rose-100 text-rose-700 border-rose-300 font-bold'
+                'Pagi': 'bg-gradient-to-r from-rosegold-400 to-rosegold-500 text-white shadow-sm font-bold border border-champagne-200/40',
+                'Siang': 'bg-gradient-to-r from-mulberry-700 to-mulberry-800 text-champagne-100 shadow-sm font-bold border border-champagne-400/30',
+                'Full Shift': 'bg-gradient-to-r from-champagne-500 via-rosegold-500 to-mulberry-700 text-white shadow-sm font-extrabold border border-champagne-300',
+                'OB': 'bg-gradient-to-r from-champagne-400 to-rosegold-400 text-mulberry-950 shadow-sm font-bold border border-champagne-300',
+                'Libur': 'bg-blush-100 text-mulberry-900 border border-rosegold-300 font-extrabold'
             };
 
-            const style = shiftStyles[shift] || 'bg-slate-100 text-slate-600 border-slate-200';
+            const style = shiftStyles[shift] || 'bg-cream-100 text-mulberry-900 border border-champagne-300';
 
             return (
-                <div class="inline-flex items-center space-x-1 group relative">
-                    <span class={`px-2 py-0.5 rounded text-[11px] font-bold border ${style}`}>
+                <div class="inline-flex items-center space-x-1 group relative my-0.5">
+                    <span class={`px-2.5 py-1 rounded-lg text-[11px] ${style}`}>
                         {name} ({shift})
                     </span>
 
@@ -1628,7 +2024,7 @@
                         <select 
                             value={shift}
                             onChange={(e) => onEdit(e.target.value)}
-                            class="opacity-0 group-hover:opacity-100 absolute inset-0 w-full h-full cursor-pointer bg-white text-[10px] font-bold border border-slate-400 rounded"
+                            class="opacity-0 group-hover:opacity-100 absolute inset-0 w-full h-full cursor-pointer bg-white text-[10px] font-bold border border-slate-400 rounded-lg shadow"
                         >
                             <option value="Pagi">Pagi</option>
                             <option value="Siang">Siang</option>
