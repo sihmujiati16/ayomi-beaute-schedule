@@ -1,0 +1,1647 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PJ AYOMI BEAUTE CLINIC - DAMPIT — Employee Scheduling System</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        ayomi: {
+                            50: '#fdf4f6',
+                            100: '#fbe8ec',
+                            500: '#e11d48',
+                            600: '#be123c',
+                            700: '#9f1239',
+                            800: '#881337',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        @media print {
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            body { background: white; color: black; }
+            .shadow-card { box-shadow: none !important; border: 1px solid #ccc; }
+        }
+    </style>
+    <!-- Libraries -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        // ==========================================
+        // INITIAL CONSTANTS & MASTER DATA
+        // ==========================================
+        const EMPLOYEES = [
+            { id: 'emp_1', name: 'Rere', role: 'Admin', defaultShift: 'Admin' },
+            { id: 'emp_2', name: 'Vanka', role: 'Admin', defaultShift: 'Admin' },
+            { id: 'emp_3', name: 'Belina', role: 'Terapis', defaultShift: 'Terapis' },
+            { id: 'emp_4', name: 'Lala', role: 'Terapis', defaultShift: 'Terapis' },
+            { id: 'emp_5', name: 'Aura', role: 'Terapis', defaultShift: 'Terapis' },
+            { id: 'emp_6', name: 'Erlita', role: 'Terapis', defaultShift: 'Terapis' },
+            { id: 'emp_7', name: 'Ervina', role: 'Terapis', defaultShift: 'Terapis' },
+            { id: 'emp_8', name: 'Jalitut', role: 'OB', defaultShift: 'OB' }
+        ];
+
+        // Forbidden Therapist Pairs on Same Shift
+        const FORBIDDEN_PAIRS = [
+            ['Belina', 'Aura'],
+            ['Lala', 'Erlita']
+        ];
+
+        // Allowed Off Days (0: Sun, 3: Wed, 6: Sat)
+        const ALLOWED_OFF_DAYS = [0, 3, 6]; 
+        const DAY_NAMES = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+
+        // Initial Special Calendar Data for Nov 2026
+        const INITIAL_CALENDAR_EVENTS = {
+            '2026-11-10': { title: 'Hari Pahlawan', type: 'Hari Libur Nasional', isOpen: true, note: 'Operasional normal klinik' },
+            '2026-11-18': { title: 'Hari Kesehatan Nasional', type: 'Hari Operasional Khusus', isOpen: true, note: 'Layanan konsultasi spesialis' },
+            '2026-11-25': { title: 'Maintenance & Sanitasi Klinik', type: 'Hari Klinik Tutup', isOpen: false, closurePolicy: 'NOT_COUNTED', note: 'Sterilisasi berkala fasilitas klinik' }
+        };
+
+        // Standard Accounts (Authentication)
+        const ACCOUNTS = [
+            { username: 'manager', name: 'Manager Klinik', role: 'manager', pass: '@Adeeva0506' },
+            ...EMPLOYEES.map(emp => ({
+                username: emp.name.toLowerCase(),
+                name: emp.name,
+                role: 'employee',
+                pass: 'admin123',
+                employeeId: emp.id
+            }))
+        ];
+
+        const MONTH_NAMES = [
+            'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 
+            'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+        ];
+
+        // ==========================================
+        // UTILITY FUNCTIONS & SCHEDULER ALGORITHM
+        // ==========================================
+        function getDaysInMonth(year, month) {
+            const date = new Date(year, month - 1, 1);
+            const days = [];
+            while (date.getMonth() === month - 1) {
+                const dayOfWeek = date.getDay();
+                const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+                days.push({
+                    dateStr,
+                    dayNum: date.getDate(),
+                    dayOfWeek,
+                    dayName: DAY_NAMES[dayOfWeek],
+                    isAllowedOffDay: ALLOWED_OFF_DAYS.includes(dayOfWeek)
+                });
+                date.setDate(date.getDate() + 1);
+            }
+            return days;
+        }
+
+        // Automatic Constraint-Based Schedule Generator
+        function generateAutoSchedule(year, month, calendarEvents) {
+            const monthDays = getDaysInMonth(year, month);
+            const schedule = {};
+            
+            // Track off-days count for each employee
+            const offCounts = {};
+            EMPLOYEES.forEach(emp => offCounts[emp.name] = 0);
+
+            // Filter available off-day dates (Wed, Sat, Sun)
+            const candidateOffDates = monthDays.filter(d => d.isAllowedOffDay && (calendarEvents[d.dateStr]?.isOpen !== false));
+
+            // Distribute 2 off days per employee randomly among candidate off dates
+            const employeeOffDates = {};
+            EMPLOYEES.forEach(emp => {
+                employeeOffDates[emp.name] = [];
+            });
+
+            // Smart Assignment for Off Days to ensure balanced distribution
+            EMPLOYEES.forEach(emp => {
+                // Pick 2 distinct days
+                const shuffled = [...candidateOffDates].sort(() => 0.5 - Math.random());
+                let assigned = 0;
+                for (let d of shuffled) {
+                    if (assigned >= 2) break;
+                    // Avoid grouping too many off days on single date
+                    const countOnDate = Object.values(employeeOffDates).filter(list => list.includes(d.dateStr)).length;
+                    if (countOnDate < 3) {
+                        employeeOffDates[emp.name].push(d.dateStr);
+                        offCounts[emp.name]++;
+                        assigned++;
+                    }
+                }
+            });
+
+            // Build Daily Roster
+            monthDays.forEach(d => {
+                const dateStr = d.dateStr;
+                const isClosed = calendarEvents[dateStr] && !calendarEvents[dateStr].isOpen;
+
+                const dailyRoster = {
+                    dateStr,
+                    dayName: d.dayName,
+                    status: isClosed ? 'CLOSED' : 'OPEN',
+                    note: calendarEvents[dateStr]?.title || '',
+                    assignments: {}
+                };
+
+                if (isClosed) {
+                    // Clinic is Closed
+                    EMPLOYEES.forEach(emp => {
+                        dailyRoster.assignments[emp.name] = 'KLINIK TUTUP';
+                    });
+                } else {
+                    // 1. ADMIN RULES (Rere & Vanka)
+                    const rereOff = employeeOffDates['Rere']?.includes(dateStr);
+                    const vankaOff = employeeOffDates['Vanka']?.includes(dateStr);
+
+                    if (rereOff && vankaOff) {
+                        // Conflict fallback: Force Vanka to work
+                        dailyRoster.assignments['Rere'] = 'Libur';
+                        dailyRoster.assignments['Vanka'] = 'Full Shift';
+                    } else if (rereOff) {
+                        dailyRoster.assignments['Rere'] = 'Libur';
+                        dailyRoster.assignments['Vanka'] = 'Full Shift';
+                    } else if (vankaOff) {
+                        dailyRoster.assignments['Vanka'] = 'Libur';
+                        dailyRoster.assignments['Rere'] = 'Full Shift';
+                    } else {
+                        // Alternate Morning/Afternoon
+                        if (d.dayNum % 2 === 0) {
+                            dailyRoster.assignments['Rere'] = 'Pagi';
+                            dailyRoster.assignments['Vanka'] = 'Siang';
+                        } else {
+                            dailyRoster.assignments['Rere'] = 'Siang';
+                            dailyRoster.assignments['Vanka'] = 'Pagi';
+                        }
+                    }
+
+                    // 2. THERAPIST RULES
+                    const therapists = ['Belina', 'Lala', 'Aura', 'Erlita', 'Ervina'];
+                    const workingTherapists = therapists.filter(t => !employeeOffDates[t]?.includes(dateStr));
+                    
+                    therapists.forEach(t => {
+                        if (employeeOffDates[t]?.includes(dateStr)) {
+                            dailyRoster.assignments[t] = 'Libur';
+                        }
+                    });
+
+                    // Assign Morning / Afternoon considering pair constraints
+                    // Pair 1: Belina & Aura | Pair 2: Lala & Erlita
+                    // Strategy: Assign Belina -> Pagi, Aura -> Siang (or vice versa based on date)
+                    let belinaShift = (d.dayNum % 2 === 1) ? 'Pagi' : 'Siang';
+                    let auraShift = belinaShift === 'Pagi' ? 'Siang' : 'Pagi';
+
+                    let lalaShift = (d.dayNum % 2 === 0) ? 'Pagi' : 'Siang';
+                    let erlitaShift = lalaShift === 'Pagi' ? 'Siang' : 'Pagi';
+
+                    let ervinaShift = (d.dayNum % 3 === 0) ? 'Pagi' : 'Siang';
+
+                    if (!employeeOffDates['Belina']?.includes(dateStr)) dailyRoster.assignments['Belina'] = belinaShift;
+                    if (!employeeOffDates['Aura']?.includes(dateStr)) dailyRoster.assignments['Aura'] = auraShift;
+                    if (!employeeOffDates['Lala']?.includes(dateStr)) dailyRoster.assignments['Lala'] = lalaShift;
+                    if (!employeeOffDates['Erlita']?.includes(dateStr)) dailyRoster.assignments['Erlita'] = erlitaShift;
+                    if (!employeeOffDates['Ervina']?.includes(dateStr)) dailyRoster.assignments['Ervina'] = ervinaShift;
+
+                    // 3. OB RULE (Jalitut)
+                    if (employeeOffDates['Jalitut']?.includes(dateStr)) {
+                        dailyRoster.assignments['Jalitut'] = 'Libur';
+                    } else {
+                        dailyRoster.assignments['Jalitut'] = 'OB';
+                    }
+                }
+
+                schedule[dateStr] = dailyRoster;
+            });
+
+            return schedule;
+        }
+
+        // Rule Validation Engine
+        function validateScheduleRules(schedule, year, month, calendarEvents) {
+            const errors = [];
+            const warnings = [];
+            const monthDays = getDaysInMonth(year, month);
+
+            // 1. Check Off Days count and Days of Week per Employee
+            const employeeOffCounts = {};
+            const invalidOffDayDates = [];
+
+            EMPLOYEES.forEach(emp => {
+                employeeOffCounts[emp.name] = 0;
+            });
+
+            monthDays.forEach(d => {
+                const dateStr = d.dateStr;
+                const roster = schedule[dateStr];
+                if (!roster) return;
+
+                const isClinicClosed = calendarEvents[dateStr] && !calendarEvents[dateStr].isOpen;
+
+                EMPLOYEES.forEach(emp => {
+                    const shift = roster.assignments[emp.name];
+                    if (shift === 'Libur') {
+                        employeeOffCounts[emp.name]++;
+                        // Check day of week rule
+                        if (!d.isAllowedOffDay && !isClinicClosed) {
+                            errors.push(`Hari Libur terlarang: ${emp.name} libur pada ${d.dayName}, ${dateStr} (Libur hanya boleh Rabu, Sabtu, Minggu).`);
+                        }
+                    }
+                });
+
+                // 2. Admin Rules Check
+                if (!isClinicClosed) {
+                    const rereShift = roster.assignments['Rere'];
+                    const vankaShift = roster.assignments['Vanka'];
+
+                    if (rereShift === 'Libur' && vankaShift === 'Libur') {
+                        errors.push(`Konflik Admin: Rere & Vanka libur bersamaan pada tanggal ${dateStr}.`);
+                    }
+                    if (rereShift === 'Libur' && vankaShift !== 'Full Shift') {
+                        errors.push(`Konflik Shift Admin: Rere libur pada ${dateStr}, Vanka HARUS Full Shift (08.00–21.00).`);
+                    }
+                    if (vankaShift === 'Libur' && rereShift !== 'Full Shift') {
+                        errors.push(`Konflik Shift Admin: Vanka libur pada ${dateStr}, Rere HARUS Full Shift (08.00–21.00).`);
+                    }
+                }
+
+                // 3. Therapist Pair Rules Check
+                if (!isClinicClosed) {
+                    const belinaShift = roster.assignments['Belina'];
+                    const auraShift = roster.assignments['Aura'];
+                    if (belinaShift && auraShift && belinaShift !== 'Libur' && belinaShift === auraShift) {
+                        errors.push(`Pelanggaran Terapis: Belina dan Aura berada pada shift yang sama (${belinaShift}) pada ${dateStr}.`);
+                    }
+
+                    const lalaShift = roster.assignments['Lala'];
+                    const erlitaShift = roster.assignments['Erlita'];
+                    if (lalaShift && erlitaShift && lalaShift !== 'Libur' && lalaShift === erlitaShift) {
+                        errors.push(`Pelanggaran Terapis: Lala dan Erlita berada pada shift yang sama (${lalaShift}) pada ${dateStr}.`);
+                    }
+                }
+            });
+
+            // Off quota validation
+            EMPLOYEES.forEach(emp => {
+                if (employeeOffCounts[emp.name] !== 2) {
+                    warnings.push(`Jatah Libur: ${emp.name} memiliki ${employeeOffCounts[emp.name]} hari libur (Ketentuan: Tepat 2 hari).`);
+                }
+            });
+
+            return {
+                status: errors.length > 0 ? 'TIDAK VALID' : warnings.length > 0 ? 'PERINGATAN' : 'VALID',
+                errors,
+                warnings,
+                employeeOffCounts
+            };
+        }
+
+        // ==========================================
+        // MAIN APPLICATION COMPONENT
+        // ==========================================
+        function App() {
+            // Auth State - null means not logged in (shows Login Screen FIRST)
+            const [currentUser, setCurrentUser] = useState(null);
+            const [loginForm, setLoginForm] = useState({ username: '', pass: '' });
+            const [authError, setAuthError] = useState('');
+
+            // App Navigation State
+            const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard', 'schedule', 'recap', 'calendar', 'audit'
+            const [year, setYear] = useState(2026);
+            const [month, setMonth] = useState(11); // 1-12
+
+            // Calendar & Events
+            const [calendarEvents, setCalendarEvents] = useState(INITIAL_CALENDAR_EVENTS);
+            const [editingEvent, setEditingEvent] = useState(null);
+
+            // Dynamic Schedules Store keyed by "YYYY-MM" (Runs effectively forever for any month/year)
+            const [schedulesStore, setSchedulesStore] = useState(() => {
+                const initialKey = '2026-11';
+                return {
+                    [initialKey]: {
+                        schedule: generateAutoSchedule(2026, 11, INITIAL_CALENDAR_EVENTS),
+                        isPublished: true,
+                        lastPublishedAt: '2026-10-28 09:00'
+                    }
+                };
+            });
+
+            const currentMonthKey = `${year}-${String(month).padStart(2, '0')}`;
+
+            // Helper to get active month's schedule state
+            const currentScheduleData = useMemo(() => {
+                if (!schedulesStore[currentMonthKey]) {
+                    // Auto generate default schedule if switching to a new month/year
+                    return {
+                        schedule: generateAutoSchedule(year, month, calendarEvents),
+                        isPublished: false,
+                        lastPublishedAt: null
+                    };
+                }
+                return schedulesStore[currentMonthKey];
+            }, [schedulesStore, currentMonthKey, year, month, calendarEvents]);
+
+            const schedule = currentScheduleData.schedule;
+            const isPublished = currentScheduleData.isPublished;
+            const lastPublishedAt = currentScheduleData.lastPublishedAt;
+
+            // Audit Trail
+            const [auditLogs, setAuditLogs] = useState([
+                { timestamp: '2026-10-28 09:00', user: 'Manager Klinik', action: 'Terbit Jadwal', details: 'Jadwal November 2026 resmi diterbitkan.' }
+            ]);
+
+            // Date Row Edit Modal State (Manager Manual Off-Day & Shift Editor)
+            const [editingDateRow, setEditingDateRow] = useState(null);
+
+            // Toast Alert State
+            const [toastMessage, setToastMessage] = useState(null);
+
+            // Filters
+            const [searchStaff, setSearchStaff] = useState('');
+            const [filterShift, setFilterShift] = useState('ALL');
+
+            // Quick Toast Handler
+            const triggerToast = (msg, type = 'info') => {
+                setToastMessage({ msg, type });
+                setTimeout(() => setToastMessage(null), 4000);
+            };
+
+            // Audit Logger
+            const logAction = (action, details) => {
+                const now = new Date();
+                const timeStr = now.toISOString().replace('T', ' ').substring(0, 16);
+                setAuditLogs(prev => [{
+                    timestamp: timeStr,
+                    user: currentUser ? currentUser.name : 'System',
+                    action,
+                    details
+                }, ...prev]);
+            };
+
+            // Validation Evaluation
+            const validationReport = useMemo(() => {
+                return validateScheduleRules(schedule, year, month, calendarEvents);
+            }, [schedule, year, month, calendarEvents]);
+
+            // Role Access Guard
+            const checkManagerAccess = (actionName) => {
+                if (!currentUser || currentUser.role !== 'manager') {
+                    triggerToast("Akses ditolak. Anda tidak memiliki izin untuk mengubah jadwal.", "error");
+                    return false;
+                }
+                return true;
+            };
+
+            // Helper to update active month's schedule object safely
+            const updateActiveSchedule = (newSchedule, newIsPublished, newPublishedAt) => {
+                setSchedulesStore(prev => ({
+                    ...prev,
+                    [currentMonthKey]: {
+                        schedule: newSchedule !== undefined ? newSchedule : (prev[currentMonthKey]?.schedule || schedule),
+                        isPublished: newIsPublished !== undefined ? newIsPublished : (prev[currentMonthKey]?.isPublished ?? false),
+                        lastPublishedAt: newPublishedAt !== undefined ? newPublishedAt : (prev[currentMonthKey]?.lastPublishedAt || null)
+                    }
+                }));
+            };
+
+            // Handle Manual Generator (Protected: cannot change published schedule)
+            const handleGenerateSchedule = () => {
+                if (!checkManagerAccess("Generate Schedule")) return;
+                if (isPublished) {
+                    triggerToast("Jadwal bulan ini telah DITERBITKAN & TERKUNCI. Tarik jadwal terlebih dahulu jika ingin meng-generate ulang!", "error");
+                    return;
+                }
+                const newSched = generateAutoSchedule(year, month, calendarEvents);
+                updateActiveSchedule(newSched, false, lastPublishedAt);
+                logAction("Generate Schedule", `Generator otomatis membuat draft jadwal baru bulan ${MONTH_NAMES[month - 1]} ${year}`);
+                triggerToast(`Jadwal otomatis ${MONTH_NAMES[month - 1]} ${year} berhasil digenerate! Silakan periksa validasi.`, "success");
+            };
+
+            // Handle Manual Shift Edit (Protected: cannot change published schedule)
+            const handleCellEdit = (dateStr, empName, newShift) => {
+                if (!checkManagerAccess("Edit Shift")) return;
+
+                if (isPublished) {
+                    triggerToast("🚫 JADWAL RESMI TERKUNCI! Jadwal yang sudah diterbitkan tidak boleh diubah secara langsung. Silakan tekan 'Tarik Jadwal' terlebih dahulu untuk melakukan revisi.", "error");
+                    return;
+                }
+
+                const prevShift = schedule[dateStr]?.assignments[empName];
+                const updatedSchedule = {
+                    ...schedule,
+                    [dateStr]: {
+                        ...schedule[dateStr],
+                        assignments: {
+                            ...schedule[dateStr].assignments,
+                            [empName]: newShift
+                        }
+                    }
+                };
+
+                updateActiveSchedule(updatedSchedule, false, lastPublishedAt);
+                logAction("Edit Shift", `Mengubah ${empName} pada ${dateStr} dari '${prevShift}' menjadi '${newShift}'`);
+                triggerToast(`Shift ${empName} pada ${dateStr} diperbarui.`, "info");
+            };
+
+            // Handle Publish
+            const handlePublishSchedule = () => {
+                if (!checkManagerAccess("Publish Schedule")) return;
+                if (validationReport.status === 'TIDAK VALID') {
+                    triggerToast("Gagal menerbitkan! Masih terdapat Pelanggaran Aturan Wajib pada jadwal.", "error");
+                    return;
+                }
+                const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 16);
+                updateActiveSchedule(schedule, true, nowStr);
+                logAction("Terbit Jadwal", `Jadwal resmi bulan ${MONTH_NAMES[month - 1]} ${year} telah dipublikasikan.`);
+                triggerToast(`Jadwal resmi ${MONTH_NAMES[month - 1]} ${year} berhasil dipublikasikan untuk seluruh pegawai!`, "success");
+            };
+
+            // Handle Unpublish / Tarik Jadwal (Manager Only)
+            const handleUnpublishSchedule = () => {
+                if (!checkManagerAccess("Tarik Jadwal")) return;
+                updateActiveSchedule(schedule, false, lastPublishedAt);
+                logAction("Tarik Jadwal", `Manager menarik kembali publikasi jadwal resmi bulan ${MONTH_NAMES[month - 1]} ${year} menjadi status Draft/Revisi.`);
+                triggerToast(`Jadwal resmi ${MONTH_NAMES[month - 1]} ${year} telah ditarik kembali! Status jadwal saat ini: Draft / Revisi.`, "info");
+            };
+
+            // Handle Auth Login
+            const handleLoginSubmit = (e) => {
+                if (e) e.preventDefault();
+                const acc = ACCOUNTS.find(a => a.username.toLowerCase() === loginForm.username.toLowerCase() && a.pass === loginForm.pass);
+                if (acc) {
+                    setCurrentUser(acc);
+                    setLoginForm({ username: '', pass: '' });
+                    setAuthError('');
+                    triggerToast(`Selamat datang, ${acc.name}! Anda masuk sebagai ${acc.role.toUpperCase()}.`, "success");
+                } else {
+                    setAuthError('Username atau kata sandi tidak valid.');
+                }
+            };
+
+            // Quick Login Helper for smooth demo testing
+            const handleQuickLogin = (username, pass) => {
+                const acc = ACCOUNTS.find(a => a.username.toLowerCase() === username.toLowerCase() && a.pass === pass);
+                if (acc) {
+                    setCurrentUser(acc);
+                    setLoginForm({ username: '', pass: '' });
+                    setAuthError('');
+                    triggerToast(`Selamat datang, ${acc.name}! (Role: ${acc.role.toUpperCase()})`, "success");
+                }
+            };
+
+            // Handle Logout
+            const handleLogout = () => {
+                setCurrentUser(null);
+                triggerToast("Anda telah keluar dari sistem.", "info");
+            };
+
+            // Calculate Analytics / Recap Data
+            const recapData = useMemo(() => {
+                const monthDays = getDaysInMonth(year, month);
+                return EMPLOYEES.map(emp => {
+                    let totalWorkDays = 0;
+                    let totalOffDays = 0;
+                    let pagiCount = 0;
+                    let siangCount = 0;
+                    let fullShiftCount = 0;
+                    let obCount = 0;
+                    let totalHours = 0;
+                    let breakHours = 0;
+                    const offDatesList = [];
+
+                    monthDays.forEach(d => {
+                        const shift = schedule[d.dateStr]?.assignments[emp.name];
+                        if (shift === 'Libur') {
+                            totalOffDays++;
+                            offDatesList.push(`${d.dayName}, ${d.dayNum}`);
+                        } else if (shift === 'Pagi') {
+                            totalWorkDays++;
+                            pagiCount++;
+                            totalHours += 8;
+                            breakHours += 1;
+                        } else if (shift === 'Siang') {
+                            totalWorkDays++;
+                            siangCount++;
+                            totalHours += 8;
+                            breakHours += 1;
+                        } else if (shift === 'Full Shift') {
+                            totalWorkDays++;
+                            fullShiftCount++;
+                            totalHours += 13;
+                            breakHours += 2;
+                        } else if (shift === 'OB') {
+                            totalWorkDays++;
+                            obCount++;
+                            totalHours += 8;
+                            breakHours += 1;
+                        }
+                    });
+
+                    return {
+                        name: emp.name,
+                        role: emp.role,
+                        totalWorkDays,
+                        totalOffDays,
+                        pagiCount,
+                        siangCount,
+                        fullShiftCount,
+                        obCount,
+                        totalHours,
+                        breakHours,
+                        effectiveHours: totalHours - breakHours,
+                        offDatesList
+                    };
+                });
+            }, [schedule, year, month]);
+
+            // Export to Excel Engine
+            const exportToExcel = () => {
+                const days = getDaysInMonth(year, month);
+                const rows = days.map(d => {
+                    const r = schedule[d.dateStr]?.assignments || {};
+                    return {
+                        'Tanggal': d.dateStr,
+                        'Hari': d.dayName,
+                        'Admin (Rere)': r['Rere'] || '-',
+                        'Admin (Vanka)': r['Vanka'] || '-',
+                        'Belina (Terapis)': r['Belina'] || '-',
+                        'Lala (Terapis)': r['Lala'] || '-',
+                        'Aura (Terapis)': r['Aura'] || '-',
+                        'Erlita (Terapis)': r['Erlita'] || '-',
+                        'Ervina (Terapis)': r['Ervina'] || '-',
+                        'Jalitut (OB)': r['Jalitut'] || '-',
+                        'Status Klinik': schedule[d.dateStr]?.status === 'CLOSED' ? 'KLINIK TUTUP' : 'BUKA',
+                        'Catatan': schedule[d.dateStr]?.note || ''
+                    };
+                });
+
+                const ws = XLSX.utils.json_to_sheet(rows);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, `Jadwal_${MONTH_NAMES[month-1]}_${year}`);
+                XLSX.writeFile(wb, `Jadwal_AYOMI_Beaute_${month}_${year}.xlsx`);
+                logAction("Ekspor Excel", `Mengunduh file Excel jadwal bulan ${MONTH_NAMES[month-1]} ${year}`);
+            };
+
+            // =========================================================
+            // 1. MANDATORY INITIAL LOGIN SCREEN (If not logged in)
+            // =========================================================
+            if (!currentUser) {
+                return (
+                    <div class="min-h-screen bg-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
+                        {/* Background Decor */}
+                        <div class="absolute -top-32 -left-32 w-96 h-96 bg-ayomi-600/30 rounded-full filter blur-3xl"></div>
+                        <div class="absolute -bottom-32 -right-32 w-96 h-96 bg-rose-600/20 rounded-full filter blur-3xl"></div>
+
+                        <div class="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-8 space-y-6 relative z-10 border border-slate-100">
+                            <div class="text-center space-y-2">
+                                <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-ayomi-700 to-rose-500 text-white font-black text-3xl flex items-center justify-center mx-auto shadow-lg shadow-rose-500/30">
+                                    A
+                                </div>
+                                <h2 class="text-2xl font-black text-slate-900 tracking-tight">PJ AYOMI BEAUTE CLINIC - DAMPIT</h2>
+                                <p class="text-xs font-semibold text-rose-600 uppercase tracking-widest">Employee Scheduling System</p>
+                                <p class="text-xs text-slate-500">Silakan login untuk mengakses portal jadwal klinik</p>
+                            </div>
+
+                            {authError && (
+                                <div class="bg-red-50 text-red-700 text-xs p-3.5 rounded-xl border border-red-200 font-semibold text-center animate-shake">
+                                    ⚠️ {authError}
+                                </div>
+                            )}
+
+                            <form onSubmit={handleLoginSubmit} class="space-y-4">
+                                <div>
+                                    <label class="text-xs font-bold text-slate-700 block mb-1">Username</label>
+                                    <input 
+                                        type="text" 
+                                        required
+                                        value={loginForm.username}
+                                        onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
+                                        placeholder="Username (Manager / Nama Pegawai)"
+                                        class="w-full border border-slate-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-ayomi-600 outline-none transition"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label class="text-xs font-bold text-slate-700 block mb-1">Kata Sandi (Password)</label>
+                                    <input 
+                                        type="password" 
+                                        required
+                                        value={loginForm.pass}
+                                        onChange={(e) => setLoginForm({ ...loginForm, pass: e.target.value })}
+                                        placeholder="••••••••"
+                                        class="w-full border border-slate-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-ayomi-600 outline-none transition"
+                                    />
+                                </div>
+
+                                <button 
+                                    type="submit"
+                                    class="w-full bg-gradient-to-r from-ayomi-700 to-rose-600 hover:from-ayomi-800 hover:to-rose-700 text-white font-bold py-3.5 rounded-xl text-sm transition shadow-lg shadow-rose-900/20"
+                                >
+                                    Masuk Ke Aplikasi
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                );
+            }
+
+            // =========================================================
+            // 2. MAIN APPLICATION INTERFACE (When Logged In)
+            // =========================================================
+            return (
+                <div class="min-h-screen flex flex-col">
+                    {/* TOAST ALERT */}
+                    {toastMessage && (
+                        <div class={`fixed top-4 right-4 z-50 px-5 py-3 rounded-xl shadow-xl flex items-center space-x-3 text-white transition-all transform animate-bounce ${
+                            toastMessage.type === 'error' ? 'bg-red-600' : toastMessage.type === 'success' ? 'bg-emerald-600' : 'bg-blue-600'
+                        }`}>
+                            <span class="font-bold text-lg">
+                                {toastMessage.type === 'error' ? '⚠️' : toastMessage.type === 'success' ? '✅' : 'ℹ️'}
+                            </span>
+                            <span class="text-sm font-medium">{toastMessage.msg}</span>
+                        </div>
+                    )}
+
+                    {/* TOP NAVIGATION HEADER */}
+                    <header class="bg-gradient-to-r from-ayomi-800 via-ayomi-700 to-rose-900 text-white shadow-lg no-print">
+                        <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-10 h-10 rounded-full bg-white text-ayomi-700 font-black text-xl flex items-center justify-center shadow-inner">
+                                    A
+                                </div>
+                                <div>
+                                    <h1 class="text-xl font-bold tracking-tight">PJ AYOMI BEAUTE CLINIC - DAMPIT</h1>
+                                    <p class="text-xs text-rose-200">Employee Scheduling System — Operational 08.00–21.00</p>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center space-x-4">
+                                {/* Role Badge */}
+                                <div class="text-right">
+                                    <div class="text-xs text-rose-200">Pengguna Aktif</div>
+                                    <div class="font-semibold text-sm flex items-center space-x-2">
+                                        <span>{currentUser.name}</span>
+                                        <span class={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                                            currentUser.role === 'manager' ? 'bg-amber-400 text-slate-900' : 'bg-rose-500 text-white'
+                                        }`}>
+                                            {currentUser.role}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <button 
+                                    onClick={handleLogout}
+                                    class="bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg text-xs font-semibold border border-white/20 transition flex items-center space-x-1"
+                                >
+                                    <span>🚪</span>
+                                    <span>Keluar</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* RBAC Employee Banner */}
+                        {currentUser.role === 'employee' && (
+                            <div class="bg-amber-500 text-slate-950 px-4 py-2 text-xs text-center font-medium shadow-inner flex items-center justify-center space-x-2">
+                                <span>🔒</span>
+                                <span><strong>Mode Pegawai (Read-Only):</strong> Anda hanya memiliki hak akses untuk melihat jadwal resmi yang telah diterbitkan oleh Manager.</span>
+                            </div>
+                        )}
+                    </header>
+
+                    {/* SUB-HEADER / NAVIGATION TABS & MONTH SELECTOR (FOREVER ACCESSIBLE) */}
+                    <nav class="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-20 no-print">
+                        <div class="max-w-7xl mx-auto px-4 flex flex-wrap items-center justify-between gap-3 py-2">
+                            <div class="flex space-x-1 overflow-x-auto">
+                                <button
+                                    onClick={() => setActiveTab('dashboard')}
+                                    class={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+                                        activeTab === 'dashboard' ? 'bg-ayomi-50 text-ayomi-700 border border-ayomi-200' : 'text-slate-600 hover:bg-slate-100'
+                                    }`}
+                                >
+                                    📊 Dashboard
+                                </button>
+
+                                <button
+                                    onClick={() => setActiveTab('schedule')}
+                                    class={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+                                        activeTab === 'schedule' ? 'bg-ayomi-50 text-ayomi-700 border border-ayomi-200' : 'text-slate-600 hover:bg-slate-100'
+                                    }`}
+                                >
+                                    📅 Tabel Jadwal Bulanan
+                                </button>
+
+                                <button
+                                    onClick={() => setActiveTab('recap')}
+                                    class={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+                                        activeTab === 'recap' ? 'bg-ayomi-50 text-ayomi-700 border border-ayomi-200' : 'text-slate-600 hover:bg-slate-100'
+                                    }`}
+                                >
+                                    📈 Rekap & Jam Kerja
+                                </button>
+
+                                {currentUser.role === 'manager' && (
+                                    <>
+                                        <button
+                                            onClick={() => setActiveTab('calendar')}
+                                            class={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+                                                activeTab === 'calendar' ? 'bg-ayomi-50 text-ayomi-700 border border-ayomi-200' : 'text-slate-600 hover:bg-slate-100'
+                                            }`}
+                                        >
+                                            ⚙️ Kalender Hari Besar
+                                        </button>
+
+                                        <button
+                                            onClick={() => setActiveTab('audit')}
+                                            class={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+                                                activeTab === 'audit' ? 'bg-ayomi-50 text-ayomi-700 border border-ayomi-200' : 'text-slate-600 hover:bg-slate-100'
+                                            }`}
+                                        >
+                                            📜 Riwayat Perubahan
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+
+                            {/* Dynamic Month/Year Selector & Publish Lock Badge */}
+                            <div class="flex items-center space-x-3 text-xs">
+                                <div class="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                                    <span class="text-slate-500 font-bold px-1.5">Periode:</span>
+                                    <select 
+                                        value={month} 
+                                        onChange={(e) => setMonth(parseInt(e.target.value))}
+                                        class="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-bold text-slate-800"
+                                    >
+                                        {MONTH_NAMES.map((m, idx) => (
+                                            <option key={idx} value={idx + 1}>{m}</option>
+                                        ))}
+                                    </select>
+
+                                    <select 
+                                        value={year} 
+                                        onChange={(e) => setYear(parseInt(e.target.value))}
+                                        class="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-bold text-slate-800"
+                                    >
+                                        {[2024, 2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032, 2033, 2034, 2035].map(y => (
+                                            <option key={y} value={y}>{y}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {isPublished ? (
+                                    <span class="bg-emerald-100 text-emerald-800 border border-emerald-300 px-2.5 py-1 rounded-full font-bold flex items-center space-x-1 shadow-sm">
+                                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                        <span>🔒 TERBIT & TERKUNCI ({lastPublishedAt || 'Resmi'})</span>
+                                    </span>
+                                ) : (
+                                    <span class="bg-amber-100 text-amber-800 border border-amber-300 px-2.5 py-1 rounded-full font-bold flex items-center space-x-1 shadow-sm">
+                                        <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                                        <span>✏️ DRAFT / REVISI</span>
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    </nav>
+
+                    {/* MAIN CONTENT CONTAINER */}
+                    <main class="flex-1 max-w-7xl w-full mx-auto px-4 py-6">
+
+                        {/* ========================================================= */}
+                        {/* TAB 1: DASHBOARD                                         */}
+                        {/* ========================================================= */}
+                        {activeTab === 'dashboard' && (
+                            <div class="space-y-6">
+                                {/* Top KPI Summary Cards */}
+                                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                                        <div>
+                                            <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Pegawai</div>
+                                            <div class="text-3xl font-extrabold text-slate-800 mt-1">8 Orang</div>
+                                            <div class="text-xs text-slate-500 mt-1">2 Admin, 5 Terapis, 1 OB</div>
+                                        </div>
+                                        <div class="w-12 h-12 bg-rose-50 text-rose-600 rounded-xl flex items-center justify-center font-bold text-xl">
+                                            👥
+                                        </div>
+                                    </div>
+
+                                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                                        <div>
+                                            <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Status Validasi</div>
+                                            <div class="mt-1">
+                                                <span class={`text-base font-extrabold px-3 py-1 rounded-lg inline-block ${
+                                                    validationReport.status === 'VALID' ? 'bg-emerald-100 text-emerald-800' :
+                                                    validationReport.status === 'PERINGATAN' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'
+                                                }`}>
+                                                    {validationReport.status}
+                                                </span>
+                                            </div>
+                                            <div class="text-xs text-slate-500 mt-1">
+                                                {validationReport.errors.length} Pelanggaran | {validationReport.warnings.length} Catatan
+                                            </div>
+                                        </div>
+                                        <div class="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center font-bold text-xl">
+                                            ⚖️
+                                        </div>
+                                    </div>
+
+                                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                                        <div>
+                                            <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Bulan Operasional</div>
+                                            <div class="text-2xl font-extrabold text-slate-800 mt-1">{MONTH_NAMES[month-1]} {year}</div>
+                                            <div class="text-xs text-slate-500 mt-1">{getDaysInMonth(year, month).length} Hari Kalender</div>
+                                        </div>
+                                        <div class="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center font-bold text-xl">
+                                            🗓️
+                                        </div>
+                                    </div>
+
+                                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                                        <div>
+                                            <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Jam Klinik</div>
+                                            <div class="text-xl font-extrabold text-slate-800 mt-1">08.00–21.00</div>
+                                            <div class="text-xs text-slate-500 mt-1">Shift Pagi, Siang & Full Shift</div>
+                                        </div>
+                                        <div class="w-12 h-12 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center font-bold text-xl">
+                                            🕒
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* MANAGER CONTROLS & ACTION BAR */}
+                                {currentUser.role === 'manager' && (
+                                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                                        <div class="flex items-center justify-between">
+                                            <h3 class="font-bold text-slate-800 flex items-center space-x-2">
+                                                <span>⚡ Control Panel Manager</span>
+                                            </h3>
+                                            {isPublished && (
+                                                <div class="text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300 px-3 py-1 rounded-lg">
+                                                    🔒 Jadwal Terbit & Terkunci — Pengubahan Jadwal Diberhentikan
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div class="flex flex-wrap gap-3">
+                                            <button 
+                                                onClick={handleGenerateSchedule}
+                                                disabled={isPublished}
+                                                class={`font-bold px-4 py-2.5 rounded-xl shadow-sm text-sm flex items-center space-x-2 transition ${
+                                                    isPublished ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-ayomi-600 hover:bg-ayomi-700 text-white'
+                                                }`}
+                                                title={isPublished ? "Tarik jadwal terlebih dahulu untuk generate ulang" : "Generate jadwal otomatis"}
+                                            >
+                                                <span>✨</span>
+                                                <span>Generate Jadwal Otomatis</span>
+                                            </button>
+
+                                            {!isPublished ? (
+                                                <button 
+                                                    onClick={handlePublishSchedule}
+                                                    class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl shadow-sm text-sm flex items-center space-x-2 transition"
+                                                >
+                                                    <span>📢</span>
+                                                    <span>Terbitkan Jadwal Resmi</span>
+                                                </button>
+                                            ) : (
+                                                <button 
+                                                    onClick={handleUnpublishSchedule}
+                                                    class="bg-amber-600 hover:bg-amber-700 text-white font-bold px-4 py-2.5 rounded-xl shadow-sm text-sm flex items-center space-x-2 transition"
+                                                >
+                                                    <span>↩️</span>
+                                                    <span>Tarik Jadwal (Batalkan Publikasi)</span>
+                                                </button>
+                                            )}
+
+                                            <button 
+                                                onClick={exportToExcel}
+                                                class="bg-emerald-800 hover:bg-emerald-900 text-white font-bold px-4 py-2.5 rounded-xl shadow-sm text-sm flex items-center space-x-2 transition"
+                                            >
+                                                <span>📊</span>
+                                                <span>Ekspor File Excel</span>
+                                            </button>
+
+                                            <button 
+                                                onClick={() => window.print()}
+                                                class="bg-slate-700 hover:bg-slate-800 text-white font-bold px-4 py-2.5 rounded-xl shadow-sm text-sm flex items-center space-x-2 transition"
+                                            >
+                                                <span>🖨️</span>
+                                                <span>Cetak Dokumen PDF</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* RULE DIAGNOSTIC & VIOLATION BOX */}
+                                {(validationReport.errors.length > 0 || validationReport.warnings.length > 0) && (
+                                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                                        <div class="bg-slate-900 text-white p-4 font-bold flex items-center justify-between">
+                                            <div class="flex items-center space-x-2">
+                                                <span>⚖️ Status Diagnostics System & Constraints Check</span>
+                                            </div>
+                                            <span class="text-xs bg-slate-800 px-3 py-1 rounded-full text-slate-300 font-mono">
+                                                Rules Checked
+                                            </span>
+                                        </div>
+
+                                        <div class="p-5 space-y-4">
+                                            {validationReport.errors.length > 0 && (
+                                                <div class="bg-red-50 border border-red-200 rounded-xl p-4">
+                                                    <h4 class="font-bold text-red-800 text-sm flex items-center space-x-2 mb-2">
+                                                        <span>🚨 Pelanggaran Aturan Wajib (Wajib Diperbaiki Sebelum Published):</span>
+                                                    </h4>
+                                                    <ul class="list-disc list-inside text-xs text-red-700 space-y-1 font-medium">
+                                                        {validationReport.errors.map((err, idx) => (
+                                                            <li key={idx}>{err}</li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            )}
+
+                                            {validationReport.warnings.length > 0 && (
+                                                <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                                                    <h4 class="font-bold text-amber-800 text-sm flex items-center space-x-2 mb-2">
+                                                        <span>⚠️ Catatan Evaluasi Jatah Libur & Beban Kerja:</span>
+                                                    </h4>
+                                                    <ul class="list-disc list-inside text-xs text-amber-700 space-y-1 font-medium">
+                                                        {validationReport.warnings.map((warn, idx) => (
+                                                            <li key={idx}>{warn}</li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* TODAY'S ROSTER QUICK VIEW */}
+                                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                                    <h3 class="font-bold text-slate-800 mb-4 flex items-center justify-between">
+                                        <span>📍 Ringkasan Penugasan Tanggal 1 {MONTH_NAMES[month-1]} {year}</span>
+                                        <span class="text-xs font-normal text-slate-500">Klinik Operasional 08:00 - 21:00</span>
+                                    </h3>
+
+                                    {(() => {
+                                        const sampleDateKey = `${year}-${String(month).padStart(2, '0')}-01`;
+                                        const dayRoster = schedule[sampleDateKey]?.assignments || {};
+
+                                        return (
+                                            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                                <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                                                    <div class="text-xs font-bold text-blue-700 uppercase">Shift Pagi (08.00 - 16.00)</div>
+                                                    <div class="mt-2 space-y-1">
+                                                        {EMPLOYEES.filter(emp => dayRoster[emp.name] === 'Pagi').map(emp => (
+                                                            <div key={emp.name} class="text-sm font-semibold text-blue-900 flex items-center justify-between">
+                                                                <span>{emp.name}</span>
+                                                                <span class="text-[10px] bg-blue-200 text-blue-800 px-2 py-0.5 rounded-full">{emp.role}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+                                                    <div class="text-xs font-bold text-emerald-700 uppercase">Shift Siang (13.00 - 21.00)</div>
+                                                    <div class="mt-2 space-y-1">
+                                                        {EMPLOYEES.filter(emp => dayRoster[emp.name] === 'Siang').map(emp => (
+                                                            <div key={emp.name} class="text-sm font-semibold text-emerald-900 flex items-center justify-between">
+                                                                <span>{emp.name}</span>
+                                                                <span class="text-[10px] bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded-full">{emp.role}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                <div class="bg-purple-50 border border-purple-200 rounded-xl p-4">
+                                                    <div class="text-xs font-bold text-purple-700 uppercase">Full Shift / OB</div>
+                                                    <div class="mt-2 space-y-1">
+                                                        {EMPLOYEES.filter(emp => ['Full Shift', 'OB'].includes(dayRoster[emp.name])).map(emp => (
+                                                            <div key={emp.name} class="text-sm font-semibold text-purple-900 flex items-center justify-between">
+                                                                <span>{emp.name}</span>
+                                                                <span class="text-[10px] bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full">
+                                                                    {dayRoster[emp.name]}
+                                                                </span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                <div class="bg-slate-100 border border-slate-200 rounded-xl p-4">
+                                                    <div class="text-xs font-bold text-slate-600 uppercase">Hari Libur</div>
+                                                    <div class="mt-2 space-y-1">
+                                                        {EMPLOYEES.filter(emp => dayRoster[emp.name] === 'Libur').map(emp => (
+                                                            <div key={emp.name} class="text-sm font-semibold text-slate-700 flex items-center justify-between">
+                                                                <span>{emp.name}</span>
+                                                                <span class="text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full">LIBUR</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ========================================================= */}
+                        {/* TAB 2: SCHEDULE MONTHLY TABLE                            */}
+                        {/* ========================================================= */}
+                        {activeTab === 'schedule' && (
+                            <div class="space-y-4">
+                                {/* Employee Unpublished Warning Banner */}
+                                {currentUser.role === 'employee' && !isPublished && (
+                                    <div class="bg-amber-50 border-2 border-amber-400 p-4 rounded-xl text-amber-900 flex items-center space-x-3 shadow-sm">
+                                        <span class="text-2xl">⚠️</span>
+                                        <div>
+                                            <div class="font-bold text-sm">Jadwal Sedang Ditarik Kembali / Dalam Revisi</div>
+                                            <div class="text-xs text-amber-800">Manager sedang melakukan penyesuaian atau telah menarik kembali publikasi jadwal bulan ini. Informasi jadwal final akan tersedia setelah diterbitkan ulang oleh Manager.</div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Lock Banner for Manager when published */}
+                                {currentUser.role === 'manager' && isPublished && (
+                                    <div class="bg-emerald-50 border-2 border-emerald-400 p-4 rounded-xl text-emerald-900 flex items-center justify-between shadow-sm">
+                                        <div class="flex items-center space-x-3">
+                                            <span class="text-2xl">🔒</span>
+                                            <div>
+                                                <div class="font-bold text-sm">Jadwal Telah Diterbitkan & Terkunci Dari Pengubahan</div>
+                                                <div class="text-xs text-emerald-800">Aturan Keamanan: Jadwal yang sudah resmi terbit tidak dapat diubah secara sengaja maupun tidak sengaja. Klik tombol <strong>Tarik Jadwal</strong> untuk melakukan revisi.</div>
+                                            </div>
+                                        </div>
+                                        <button 
+                                            onClick={handleUnpublishSchedule}
+                                            class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-3 py-2 rounded-xl transition shadow"
+                                        >
+                                            ↩️ Tarik Jadwal
+                                        </button>
+                                    </div>
+                                )}
+
+                                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4 no-print">
+                                    <div class="flex items-center space-x-3 w-full md:w-auto">
+                                        <div class="font-bold text-slate-800">Filter Shift:</div>
+                                        <select 
+                                            value={filterShift} 
+                                            onChange={(e) => setFilterShift(e.target.value)}
+                                            class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm bg-slate-50 font-medium"
+                                        >
+                                            <option value="ALL">Semua Shift</option>
+                                            <option value="Pagi">Shift Pagi</option>
+                                            <option value="Siang">Shift Siang</option>
+                                            <option value="Full Shift">Full Shift</option>
+                                            <option value="Libur">Libur</option>
+                                        </select>
+
+                                        <input 
+                                            type="text"
+                                            placeholder="Cari nama pegawai..."
+                                            value={searchStaff}
+                                            onChange={(e) => setSearchStaff(e.target.value)}
+                                            class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm bg-slate-50 font-medium"
+                                        />
+                                    </div>
+
+                                    {currentUser.role === 'manager' && !isPublished && (
+                                        <div class="text-xs text-slate-500 font-medium">
+                                            💡 Klik badge pegawai untuk ubah shift cepat, atau klik tombol ✏️ <strong>Edit Tanggal Ini</strong>.
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* TABLE DISPLAY */}
+                                <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                                    <div class="overflow-x-auto">
+                                        <table class="w-full text-left text-xs border-collapse">
+                                            <thead>
+                                                <tr class="bg-slate-900 text-white font-bold uppercase tracking-wider">
+                                                    <th class="p-3 border-b border-slate-800">Tanggal</th>
+                                                    <th class="p-3 border-b border-slate-800">Hari</th>
+                                                    <th class="p-3 border-b border-slate-800">Admin Pagi</th>
+                                                    <th class="p-3 border-b border-slate-800">Admin Siang</th>
+                                                    <th class="p-3 border-b border-slate-800">Admin Full Shift</th>
+                                                    <th class="p-3 border-b border-slate-800">Terapis Pagi</th>
+                                                    <th class="p-3 border-b border-slate-800">Terapis Siang</th>
+                                                    <th class="p-3 border-b border-slate-800">OB</th>
+                                                    <th class="p-3 border-b border-slate-800">Pegawai Libur</th>
+                                                    <th class="p-3 border-b border-slate-800 text-center">Status & Aksi</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody class="divide-y divide-slate-200 font-medium">
+                                                {getDaysInMonth(year, month).map(d => {
+                                                    const dateStr = d.dateStr;
+                                                    const roster = schedule[dateStr]?.assignments || {};
+                                                    const isClosed = schedule[dateStr]?.status === 'CLOSED';
+                                                    const note = schedule[dateStr]?.note || '';
+
+                                                    // Admin grouping
+                                                    const adminPagi = EMPLOYEES.filter(e => e.role === 'Admin' && roster[e.name] === 'Pagi').map(e => e.name);
+                                                    const adminSiang = EMPLOYEES.filter(e => e.role === 'Admin' && roster[e.name] === 'Siang').map(e => e.name);
+                                                    const adminFull = EMPLOYEES.filter(e => e.role === 'Admin' && roster[e.name] === 'Full Shift').map(e => e.name);
+
+                                                    // Therapist grouping
+                                                    const terapisPagi = EMPLOYEES.filter(e => e.role === 'Terapis' && roster[e.name] === 'Pagi').map(e => e.name);
+                                                    const terapisSiang = EMPLOYEES.filter(e => e.role === 'Terapis' && roster[e.name] === 'Siang').map(e => e.name);
+
+                                                    // OB
+                                                    const obShift = roster['Jalitut'] || '-';
+
+                                                    // Off Staff
+                                                    const offStaff = EMPLOYEES.filter(e => roster[e.name] === 'Libur').map(e => e.name);
+
+                                                    return (
+                                                        <tr key={dateStr} class={`hover:bg-slate-50 transition ${isClosed ? 'bg-amber-50/60' : ''}`}>
+                                                            <td class="p-3 font-bold text-slate-800 whitespace-nowrap">
+                                                                {dateStr}
+                                                            </td>
+                                                            <td class="p-3 font-semibold text-slate-600 whitespace-nowrap">
+                                                                <span class={`px-2 py-0.5 rounded ${d.isAllowedOffDay ? 'bg-emerald-100 text-emerald-800 font-bold' : 'text-slate-700'}`}>
+                                                                    {d.dayName}
+                                                                </span>
+                                                            </td>
+
+                                                            {/* Admin Columns */}
+                                                            <td class="p-3">
+                                                                {isClosed ? '-' : adminPagi.map(name => (
+                                                                    <ShiftBadge key={name} name={name} shift="Pagi" onEdit={currentUser.role === 'manager' && !isPublished ? (s) => handleCellEdit(dateStr, name, s) : null} />
+                                                                ))}
+                                                            </td>
+
+                                                            <td class="p-3">
+                                                                {isClosed ? '-' : adminSiang.map(name => (
+                                                                    <ShiftBadge key={name} name={name} shift="Siang" onEdit={currentUser.role === 'manager' && !isPublished ? (s) => handleCellEdit(dateStr, name, s) : null} />
+                                                                ))}
+                                                            </td>
+
+                                                            <td class="p-3">
+                                                                {isClosed ? '-' : adminFull.map(name => (
+                                                                    <ShiftBadge key={name} name={name} shift="Full Shift" onEdit={currentUser.role === 'manager' && !isPublished ? (s) => handleCellEdit(dateStr, name, s) : null} />
+                                                                ))}
+                                                            </td>
+
+                                                            {/* Terapis Pagi */}
+                                                            <td class="p-3">
+                                                                {isClosed ? '-' : (
+                                                                    <div class="flex flex-wrap gap-1">
+                                                                        {terapisPagi.map(name => (
+                                                                            <ShiftBadge key={name} name={name} shift="Pagi" onEdit={currentUser.role === 'manager' && !isPublished ? (s) => handleCellEdit(dateStr, name, s) : null} />
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+                                                            </td>
+
+                                                            {/* Terapis Siang */}
+                                                            <td class="p-3">
+                                                                {isClosed ? '-' : (
+                                                                    <div class="flex flex-wrap gap-1">
+                                                                        {terapisSiang.map(name => (
+                                                                            <ShiftBadge key={name} name={name} shift="Siang" onEdit={currentUser.role === 'manager' && !isPublished ? (s) => handleCellEdit(dateStr, name, s) : null} />
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+                                                            </td>
+
+                                                            {/* OB */}
+                                                            <td class="p-3">
+                                                                {isClosed ? '-' : (
+                                                                    <ShiftBadge name="Jalitut" shift={obShift} onEdit={currentUser.role === 'manager' && !isPublished ? (s) => handleCellEdit(dateStr, 'Jalitut', s) : null} />
+                                                                )}
+                                                            </td>
+
+                                                            {/* Pegawai Libur */}
+                                                            <td class="p-3">
+                                                                {offStaff.length > 0 ? (
+                                                                    <div class="flex flex-wrap gap-1">
+                                                                        {offStaff.map(name => (
+                                                                            <ShiftBadge key={name} name={name} shift="Libur" onEdit={currentUser.role === 'manager' && !isPublished ? (s) => handleCellEdit(dateStr, name, s) : null} />
+                                                                        ))}
+                                                                    </div>
+                                                                ) : (
+                                                                    <span class="text-slate-400 font-mono text-[10px]">-</span>
+                                                                )}
+                                                            </td>
+
+                                                            {/* Status & Action */}
+                                                            <td class="p-3 text-center whitespace-nowrap">
+                                                                <div class="flex items-center justify-center space-x-2">
+                                                                    {isClosed ? (
+                                                                        <span class="bg-amber-200 text-amber-900 border border-amber-300 font-black px-2.5 py-1 rounded-md text-[11px]">
+                                                                            KLINIK TUTUP ({note || 'Hari Libur Resmi'})
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span class="bg-slate-100 text-slate-700 font-semibold px-2 py-0.5 rounded text-[11px]">
+                                                                            Operasional
+                                                                        </span>
+                                                                    )}
+
+                                                                    {currentUser.role === 'manager' && (
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                if (isPublished) {
+                                                                                    triggerToast("🚫 Jadwal ini telah DITERBITKAN & TERKUNCI. Tarik jadwal terlebih dahulu jika ingin mengedit manual.", "error");
+                                                                                } else {
+                                                                                    setEditingDateRow(dateStr);
+                                                                                }
+                                                                            }}
+                                                                            class={`no-print text-[10px] font-bold px-2 py-1 rounded shadow ${
+                                                                                isPublished ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-slate-800 hover:bg-slate-900 text-white'
+                                                                            }`}
+                                                                            title={isPublished ? "Terkunci (Jadwal Terbit)" : "Edit Manual Hari Libur & Shift Tanggal Ini"}
+                                                                        >
+                                                                            ✏️ Edit
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ========================================================= */}
+                        {/* TAB 3: RECAP & WORKING HOURS                             */}
+                        {/* ========================================================= */}
+                        {activeTab === 'recap' && (
+                            <div class="space-y-6">
+                                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                                    <h3 class="font-bold text-slate-800 text-lg mb-2">
+                                        📈 Rekapitulasi Jam Kerja & Jatah Libur ({MONTH_NAMES[month-1]} {year})
+                                    </h3>
+                                    <p class="text-xs text-slate-500 mb-4">
+                                        Keterangan: Jam Efektif dihitung dari Total Jam Terjadwal dikurangi Durasi Istirahat Resmi (1 Jam per shift 8h, 2 Jam per Full Shift).
+                                    </p>
+
+                                    <div class="overflow-x-auto">
+                                        <table class="w-full text-left text-xs border-collapse">
+                                            <thead>
+                                                <tr class="bg-slate-900 text-white font-bold uppercase tracking-wider">
+                                                    <th class="p-3 border-b border-slate-800">Nama Pegawai</th>
+                                                    <th class="p-3 border-b border-slate-800">Jabatan</th>
+                                                    <th class="p-3 border-b border-slate-800">Hari Kerja</th>
+                                                    <th class="p-3 border-b border-slate-800">Hari Libur</th>
+                                                    <th class="p-3 border-b border-slate-800">Shift Pagi</th>
+                                                    <th class="p-3 border-b border-slate-800">Shift Siang</th>
+                                                    <th class="p-3 border-b border-slate-800">Full Shift</th>
+                                                    <th class="p-3 border-b border-slate-800">Jam Terjadwal</th>
+                                                    <th class="p-3 border-b border-slate-800">Jam Istirahat</th>
+                                                    <th class="p-3 border-b border-slate-800">Jam Efektif</th>
+                                                    <th class="p-3 border-b border-slate-800">Tanggal Libur Pegawai</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody class="divide-y divide-slate-200 font-medium">
+                                                {recapData.map(r => (
+                                                    <tr key={r.name} class="hover:bg-slate-50">
+                                                        <td class="p-3 font-bold text-slate-800">{r.name}</td>
+                                                        <td class="p-3">
+                                                            <span class="bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-semibold text-[11px]">
+                                                                {r.role}
+                                                            </span>
+                                                        </td>
+                                                        <td class="p-3 font-semibold text-emerald-700">{r.totalWorkDays} Hari</td>
+                                                        <td class="p-3">
+                                                            <span class={`font-bold px-2 py-0.5 rounded ${r.totalOffDays === 2 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                                                                {r.totalOffDays} Hari
+                                                            </span>
+                                                        </td>
+                                                        <td class="p-3">{r.pagiCount}</td>
+                                                        <td class="p-3">{r.siangCount}</td>
+                                                        <td class="p-3">{r.fullShiftCount}</td>
+                                                        <td class="p-3 font-bold text-slate-800">{r.totalHours} Jam</td>
+                                                        <td class="p-3 text-slate-500">{r.breakHours} Jam</td>
+                                                        <td class="p-3 font-black text-ayomi-700">{r.effectiveHours} Jam</td>
+                                                        <td class="p-3 text-[11px] text-slate-600">
+                                                            {r.offDatesList.join(' | ')}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ========================================================= */}
+                        {/* TAB 4: CALENDAR & HOLIDAYS (MANAGER ONLY)                */}
+                        {/* ========================================================= */}
+                        {activeTab === 'calendar' && currentUser.role === 'manager' && (
+                            <div class="space-y-6">
+                                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                                    <h3 class="font-bold text-slate-800 text-lg mb-2">
+                                        ⚙️ Pengaturan Kalender, Hari Besar & Closure Policy
+                                    </h3>
+                                    <p class="text-xs text-slate-500 mb-4">
+                                        Manager dapat mengatur tanggal khusus, hari besar keagamaan/nasional, serta menetapkan apakah klinik TUTUP atau BUKA.
+                                    </p>
+
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        {/* Event Form */}
+                                        <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                                            <h4 class="font-bold text-slate-700 text-sm">Tambah / Edit Tanggal Khusus</h4>
+                                            
+                                            <div>
+                                                <label class="text-xs font-semibold text-slate-600 block mb-1">Tanggal Khusus</label>
+                                                <input 
+                                                    type="date"
+                                                    value={editingEvent?.dateStr || `${year}-${String(month).padStart(2,'0')}-15`}
+                                                    onChange={(e) => setEditingEvent(prev => ({ ...prev, dateStr: e.target.value }))}
+                                                    class="w-full border border-slate-300 rounded-lg p-2 text-sm bg-white"
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label class="text-xs font-semibold text-slate-600 block mb-1">Nama Hari Besar / Keterangan</label>
+                                                <input 
+                                                    type="text"
+                                                    placeholder="Contoh: Maintenance Alat / Hari Besar Islam"
+                                                    value={editingEvent?.title || ''}
+                                                    onChange={(e) => setEditingEvent(prev => ({ ...prev, title: e.target.value }))}
+                                                    class="w-full border border-slate-300 rounded-lg p-2 text-sm bg-white"
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label class="text-xs font-semibold text-slate-600 block mb-1">Kategori Hari Besar</label>
+                                                <select 
+                                                    value={editingEvent?.type || 'Hari Libur Nasional'}
+                                                    onChange={(e) => setEditingEvent(prev => ({ ...prev, type: e.target.value }))}
+                                                    class="w-full border border-slate-300 rounded-lg p-2 text-sm bg-white"
+                                                >
+                                                    <option value="Hari Besar Keagamaan Islam">Hari Besar Keagamaan Islam</option>
+                                                    <option value="Hari Besar Keagamaan Kristen">Hari Besar Keagamaan Kristen</option>
+                                                    <option value="Hari Libur Nasional">Hari Libur Nasional</option>
+                                                    <option value="Hari Operasional Khusus">Hari Operasional Khusus</option>
+                                                    <option value="Hari Klinik Tutup">Hari Klinik Tutup</option>
+                                                </select>
+                                            </div>
+
+                                            <div class="flex items-center space-x-3 py-2">
+                                                <label class="text-xs font-semibold text-slate-600">Status Operasional Klinik:</label>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setEditingEvent(prev => ({ ...prev, isOpen: !prev?.isOpen }))}
+                                                    class={`px-3 py-1 rounded-lg text-xs font-bold ${
+                                                        editingEvent?.isOpen !== false ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'
+                                                    }`}
+                                                >
+                                                    {editingEvent?.isOpen !== false ? 'KLINIK BUKA' : 'KLINIK TUTUP'}
+                                                </button>
+                                            </div>
+
+                                            {editingEvent?.isOpen === false && (
+                                                <div class="bg-amber-100 p-3 rounded-lg border border-amber-300 text-xs text-amber-900 space-y-2">
+                                                    <div class="font-bold">Dampak terhadap Jatah Libur Pegawai:</div>
+                                                    <select 
+                                                        value={editingEvent?.closurePolicy || 'COUNT_AS_OFF'}
+                                                        onChange={(e) => setEditingEvent(prev => ({ ...prev, closurePolicy: e.target.value }))}
+                                                        class="w-full border border-amber-400 rounded p-1.5 text-xs bg-white"
+                                                    >
+                                                        <option value="COUNT_AS_OFF">1. Dihitung sebagai jatah libur pegawai</option>
+                                                        <option value="NOT_COUNTED">2. Tidak dihitung jatah libur pribadi</option>
+                                                        <option value="CUSTOM">3. Dikecualikan (Kebijakan Khusus)</option>
+                                                    </select>
+                                                </div>
+                                            )}
+
+                                            <button 
+                                                onClick={() => {
+                                                    if (!editingEvent?.dateStr || !editingEvent?.title) {
+                                                        triggerToast("Lengkapi tanggal dan nama hari besar.", "error");
+                                                        return;
+                                                    }
+                                                    setCalendarEvents(prev => ({
+                                                        ...prev,
+                                                        [editingEvent.dateStr]: {
+                                                            title: editingEvent.title,
+                                                            type: editingEvent.type,
+                                                            isOpen: editingEvent.isOpen !== false,
+                                                            closurePolicy: editingEvent.closurePolicy || 'COUNT_AS_OFF',
+                                                            note: editingEvent.title
+                                                        }
+                                                    }));
+                                                    logAction("Update Kalender", `Mengatur tanggal ${editingEvent.dateStr} sebagai ${editingEvent.title}`);
+                                                    triggerToast("Kalender hari besar berhasil diperbarui!", "success");
+                                                    setEditingEvent(null);
+                                                }}
+                                                class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 rounded-lg text-xs transition"
+                                            >
+                                                Simpan Tanggal Khusus
+                                            </button>
+                                        </div>
+
+                                        {/* Event List */}
+                                        <div class="space-y-3">
+                                            <h4 class="font-bold text-slate-700 text-sm">Daftar Tanggal Khusus Terdaftar</h4>
+                                            
+                                            <div class="space-y-2">
+                                                {Object.keys(calendarEvents).map(dateKey => {
+                                                    const ev = calendarEvents[dateKey];
+                                                    return (
+                                                        <div key={dateKey} class="p-3 bg-white border border-slate-200 rounded-xl flex items-center justify-between">
+                                                            <div>
+                                                                <div class="font-bold text-sm text-slate-800">{dateKey} — {ev.title}</div>
+                                                                <div class="text-xs text-slate-500">{ev.type}</div>
+                                                            </div>
+                                                            <div class="flex items-center space-x-2">
+                                                                <span class={`text-[10px] px-2 py-0.5 rounded font-bold ${ev.isOpen ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                                                                    {ev.isOpen ? 'BUKA' : 'TUTUP'}
+                                                                </span>
+                                                                <button 
+                                                                    onClick={() => {
+                                                                        const copy = { ...calendarEvents };
+                                                                        delete copy[dateKey];
+                                                                        setCalendarEvents(copy);
+                                                                        logAction("Hapus Tanggal", `Hapus tanggal khusus ${dateKey}`);
+                                                                    }}
+                                                                    class="text-xs text-red-600 hover:text-red-800 font-bold px-2 py-1"
+                                                                >
+                                                                    Hapus
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ========================================================= */}
+                        {/* TAB 5: AUDIT TRAIL LOGS (MANAGER ONLY)                   */}
+                        {/* ========================================================= */}
+                        {activeTab === 'audit' && currentUser.role === 'manager' && (
+                            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                                <h3 class="font-bold text-slate-800 text-lg mb-2">
+                                    📜 Riwayat Perubahan & Audit Trail System
+                                </h3>
+                                <p class="text-xs text-slate-500 mb-4">
+                                    Mencatat seluruh aksi pengubahan jadwal, kalender, dan publikasi oleh pengguna.
+                                </p>
+
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-left text-xs border-collapse">
+                                        <thead>
+                                            <tr class="bg-slate-900 text-white font-bold uppercase tracking-wider">
+                                                <th class="p-3">Waktu (Timestamp)</th>
+                                                <th class="p-3">Pengguna</th>
+                                                <th class="p-3">Jenis Aksi</th>
+                                                <th class="p-3">Detail Perubahan</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-slate-200">
+                                            {auditLogs.map((log, index) => (
+                                                <tr key={index} class="hover:bg-slate-50">
+                                                    <td class="p-3 font-mono text-slate-600">{log.timestamp}</td>
+                                                    <td class="p-3 font-semibold text-slate-800">{log.user}</td>
+                                                    <td class="p-3">
+                                                        <span class="bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded text-[10px]">
+                                                            {log.action}
+                                                        </span>
+                                                    </td>
+                                                    <td class="p-3 text-slate-700">{log.details}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+
+                    </main>
+
+                    {/* MANAGER MANUAL OFF-DAY & SHIFT EDITOR MODAL FOR SPECIFIC DATE */}
+                    {editingDateRow && (
+                        <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                            <div class="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-6 space-y-5">
+                                <div class="flex items-center justify-between border-b pb-3 border-slate-200">
+                                    <div>
+                                        <h3 class="text-lg font-bold text-slate-900">
+                                            ✏️ Edit Penentuan Shift & Hari Libur Manual
+                                        </h3>
+                                        <p class="text-xs text-slate-500">
+                                            Tanggal: <strong class="text-ayomi-700">{editingDateRow}</strong>
+                                        </p>
+                                    </div>
+                                    <button 
+                                        onClick={() => setEditingDateRow(null)}
+                                        class="text-slate-400 hover:text-slate-600 font-bold text-xl px-2"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+
+                                <div class="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+                                    {EMPLOYEES.map(emp => {
+                                        const currentShift = schedule[editingDateRow]?.assignments[emp.name] || 'Pagi';
+                                        return (
+                                            <div key={emp.name} class="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
+                                                <div>
+                                                    <div class="font-bold text-sm text-slate-800">{emp.name}</div>
+                                                    <div class="text-xs text-slate-500">{emp.role}</div>
+                                                </div>
+
+                                                <div class="flex items-center space-x-2">
+                                                    <select
+                                                        value={currentShift}
+                                                        onChange={(e) => handleCellEdit(editingDateRow, emp.name, e.target.value)}
+                                                        class={`px-3 py-1.5 rounded-lg text-xs font-bold border ${
+                                                            currentShift === 'Libur' ? 'bg-rose-100 text-rose-800 border-rose-300' :
+                                                            currentShift === 'Pagi' ? 'bg-blue-100 text-blue-800 border-blue-300' :
+                                                            currentShift === 'Siang' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
+                                                            currentShift === 'Full Shift' ? 'bg-purple-100 text-purple-800 border-purple-300' :
+                                                            'bg-indigo-100 text-indigo-800 border-indigo-300'
+                                                        }`}
+                                                    >
+                                                        <option value="Pagi">Shift Pagi (08.00–16.00)</option>
+                                                        <option value="Siang">Shift Siang (13.00–21.00)</option>
+                                                        <option value="Full Shift">Full Shift Admin (08.00–21.00)</option>
+                                                        <option value="OB">Shift OB (07.00–15.00)</option>
+                                                        <option value="Libur">🌴 LIBUR (Hari Libur Pegawai)</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                <div class="pt-3 border-t border-slate-200 flex justify-end">
+                                    <button 
+                                        onClick={() => setEditingDateRow(null)}
+                                        class="bg-slate-900 hover:bg-slate-800 text-white font-bold px-5 py-2.5 rounded-xl text-xs transition shadow"
+                                    >
+                                        Selesai & Simpan Perubahan
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // ==========================================
+        // SUB-COMPONENTS
+        // ==========================================
+        function ShiftBadge({ name, shift, onEdit }) {
+            const shiftStyles = {
+                'Pagi': 'bg-blue-100 text-blue-800 border-blue-300',
+                'Siang': 'bg-emerald-100 text-emerald-800 border-emerald-300',
+                'Full Shift': 'bg-purple-100 text-purple-800 border-purple-300',
+                'OB': 'bg-indigo-100 text-indigo-800 border-indigo-300',
+                'Libur': 'bg-rose-100 text-rose-700 border-rose-300 font-bold'
+            };
+
+            const style = shiftStyles[shift] || 'bg-slate-100 text-slate-600 border-slate-200';
+
+            return (
+                <div class="inline-flex items-center space-x-1 group relative">
+                    <span class={`px-2 py-0.5 rounded text-[11px] font-bold border ${style}`}>
+                        {name} ({shift})
+                    </span>
+
+                    {onEdit && (
+                        <select 
+                            value={shift}
+                            onChange={(e) => onEdit(e.target.value)}
+                            class="opacity-0 group-hover:opacity-100 absolute inset-0 w-full h-full cursor-pointer bg-white text-[10px] font-bold border border-slate-400 rounded"
+                        >
+                            <option value="Pagi">Pagi</option>
+                            <option value="Siang">Siang</option>
+                            <option value="Full Shift">Full Shift</option>
+                            <option value="Libur">Libur</option>
+                        </select>
+                    )}
+                </div>
+            );
+        }
+
+        // RENDER TO DOM
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>
