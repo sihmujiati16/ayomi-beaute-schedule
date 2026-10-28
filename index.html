@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PJ AYOMI BEAUTE CLINIC - DAMPIT — Employee Scheduling System</title>
+    <title>PJ AYOMI BEAUTE CLINIC - DAMPIT — Employee Scheduling & Announcement System</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -78,12 +78,15 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- Firebase Compat SDKs for Realtime Cloud Sync (GitHub Pages Multi-Device Support) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 </head>
-<body class="bg-gradient-to-br from-cream-100 via-blush-50 to-cream-200 text-mulberry-950 min-h-screen">
+<body class="bg-gradient-to-br from-cream-50 via-blush-50 to-cream-100 text-mulberry-950 min-h-screen">
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useMemo, useRef } = React;
+        const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
         // ==========================================
         // INITIAL CONSTANTS & MASTER DATA
@@ -99,22 +102,39 @@
             { id: 'emp_8', name: 'Jalitut', role: 'OB', defaultShift: 'OB' }
         ];
 
-        // Forbidden Therapist Pairs on Same Shift
-        const FORBIDDEN_PAIRS = [
-            ['Belina', 'Aura'],
-            ['Lala', 'Erlita']
-        ];
-
-        // Allowed Off Days (0: Sun, 3: Wed, 6: Sat)
         const ALLOWED_OFF_DAYS = [0, 3, 6]; 
         const DAY_NAMES = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 
-        // Initial Special Calendar Data for Nov 2026
         const INITIAL_CALENDAR_EVENTS = {
             '2026-11-10': { title: 'Hari Pahlawan', type: 'Hari Libur Nasional', isOpen: true, note: 'Operasional normal klinik' },
             '2026-11-18': { title: 'Hari Kesehatan Nasional', type: 'Hari Operasional Khusus', isOpen: true, note: 'Layanan konsultasi spesialis' },
             '2026-11-25': { title: 'Maintenance & Sanitasi Klinik', type: 'Hari Klinik Tutup', isOpen: false, closurePolicy: 'NOT_COUNTED', note: 'Sterilisasi berkala fasilitas klinik' }
         };
+
+        const INITIAL_ANNOUNCEMENTS = [
+            {
+                id: 'ann_1',
+                title: 'SOP Pelayanan & Jam Kehadiran Shift',
+                category: 'SOP & Kebijakan',
+                content: 'Seluruh staf dan terapis diharapkan hadir 15 menit sebelum shift dimulai. Mohon menjaga kerapian atribut kerja dan kebersihan treatment room.',
+                isPinned: true,
+                priority: 'high',
+                targetRole: 'Semua Pegawai',
+                createdAt: '2026-10-28 08:30',
+                author: 'Manager Klinik'
+            },
+            {
+                id: 'ann_2',
+                title: 'Jadwal Sterilisasi & Maintenance November 2026',
+                category: 'Operasional Klinik',
+                content: 'Klinik akan tutup operasional penuh pada 25 November 2026 untuk sterilisasi fasilitas. Tidak ada jadwal shift pada tanggal tersebut.',
+                isPinned: false,
+                priority: 'normal',
+                targetRole: 'Semua Pegawai',
+                createdAt: '2026-10-27 14:00',
+                author: 'Manager Klinik'
+            }
+        ];
 
         const MONTH_NAMES = [
             'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 
@@ -122,79 +142,48 @@
         ];
 
         // ==========================================
-        // BEAUTY CLINIC FLOWER LOGO COMPONENT
+        // BEAUTY CLINIC SIMPLE TULIP LOGO COMPONENT
         // ==========================================
         function ClinicLogo({ size = "md", showText = false, textLight = false }) {
             const dimensions = {
-                sm: "w-9 h-9",
+                sm: "w-8 h-8",
                 md: "w-12 h-12",
-                lg: "w-24 h-24",
-                xl: "w-32 h-32"
+                lg: "w-20 h-20",
+                xl: "w-28 h-28"
             }[size] || "w-12 h-12";
 
             return (
                 <div class="flex flex-col items-center justify-center inline-flex">
-                    <svg viewBox="0 0 400 400" class={dimensions} fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <svg viewBox="0 0 200 200" class={dimensions} fill="none" xmlns="http://www.w3.org/2000/svg">
                         <defs>
-                            {/* Rose Gold, Champagne Gold, Mulberry Burgundy & Blush Gradients */}
-                            <linearGradient id="roseGoldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" stopColor="#E5B9A4" />
-                                <stop offset="50%" stopColor="#D89C82" />
-                                <stop offset="100%" stopColor="#C77D63" />
+                            <linearGradient id="tulipPetalGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stopColor="#EC89A3" />
+                                <stop offset="50%" stopColor="#D04968" />
+                                <stop offset="100%" stopColor="#94203C" />
                             </linearGradient>
-                            <linearGradient id="blushGrad" x1="100%" y1="0%" x2="0%" y2="100%">
-                                <stop offset="0%" stopColor="#FCF0F3" />
-                                <stop offset="50%" stopColor="#F4B8C7" />
-                                <stop offset="100%" stopColor="#EC89A3" />
-                            </linearGradient>
-                            <linearGradient id="champagneGoldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" stopColor="#FDFBF7" />
-                                <stop offset="30%" stopColor="#F5EBC4" />
-                                <stop offset="70%" stopColor="#DFAA3B" />
+                            <linearGradient id="tulipGoldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stopColor="#F5EBC4" />
+                                <stop offset="50%" stopColor="#DFAA3B" />
                                 <stop offset="100%" stopColor="#AD8A28" />
                             </linearGradient>
-                            <linearGradient id="mulberryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" stopColor="#94203C" />
-                                <stop offset="50%" stopColor="#581120" />
-                                <stop offset="100%" stopColor="#22030B" />
+                            <linearGradient id="tulipStemGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stopColor="#D89C82" />
+                                <stop offset="100%" stopColor="#94203C" />
                             </linearGradient>
-                            <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
-                                <feGaussianBlur stdDeviation="8" result="blur" />
-                                <feComposite in="SourceGraphic" in2="blur" operator="over" />
-                            </filter>
                         </defs>
-                        
-                        {/* Outer Glowing Ring */}
-                        <circle cx="200" cy="200" r="180" fill="url(#blushGrad)" opacity="0.25" />
-                        <circle cx="200" cy="200" r="170" stroke="url(#champagneGoldGrad)" strokeWidth="3.5" strokeDasharray="10 8" opacity="0.85" />
 
-                        {/* Outer Blossom Petals (8-way symmetric lotus) */}
-                        <g filter="url(#softGlow)">
-                            {/* Vertical & Horizontal Petals */}
-                            <path d="M 200,30 C 235,95 275,135 370,200 C 275,265 235,305 200,370 C 165,305 125,265 30,200 C 125,135 165,95 200,30 Z" fill="url(#mulberryGrad)" opacity="0.9" />
-                            {/* Diagonal Petals */}
-                            <path d="M 80,80 C 145,125 175,155 320,80 C 275,145 245,175 320,320 C 255,275 225,245 80,320 C 125,255 155,225 80,80 Z" fill="url(#roseGoldGrad)" opacity="0.8" />
-                        </g>
-
-                        {/* Inner Blooming Lotus Layers */}
-                        <path d="M 200,75 C 245,135 255,175 200,285 C 145,175 155,135 200,75 Z" fill="url(#champagneGoldGrad)" />
-                        <path d="M 120,135 C 180,165 200,195 200,290 C 135,270 100,210 120,135 Z" fill="url(#blushGrad)" opacity="0.9" />
-                        <path d="M 280,135 C 220,165 200,195 200,290 C 265,270 300,210 280,135 Z" fill="url(#blushGrad)" opacity="0.9" />
-
-                        {/* Center Floral Stamen (Champagne Gold Core) */}
-                        <circle cx="200" cy="200" r="38" fill="url(#champagneGoldGrad)" />
-                        <circle cx="200" cy="200" r="24" fill="#FFFFFF" opacity="0.6" />
-                        <circle cx="200" cy="200" r="14" fill="url(#mulberryGrad)" />
-
-                        {/* Mini Decorative Sparkles */}
-                        <circle cx="200" cy="45" r="4" fill="#DFAA3B" />
-                        <circle cx="355" cy="200" r="4" fill="#DFAA3B" />
-                        <circle cx="200" cy="355" r="4" fill="#DFAA3B" />
-                        <circle cx="45" cy="200" r="4" fill="#DFAA3B" />
+                        <circle cx="100" cy="100" r="88" fill="#FDF8F9" stroke="url(#tulipGoldGrad)" strokeWidth="2.5" strokeDasharray="6 4" opacity="0.85" />
+                        <path d="M 100 115 C 100 145 92 165 85 178" stroke="url(#tulipStemGrad)" strokeWidth="4.5" strokeLinecap="round" />
+                        <path d="M 98 142 C 120 135 135 120 138 105 C 122 118 105 132 98 142 Z" fill="url(#tulipPetalGrad)" opacity="0.75" />
+                        <path d="M 100 115 C 72 108 60 75 75 48 C 88 68 98 90 100 115 Z" fill="url(#tulipPetalGrad)" opacity="0.9" />
+                        <path d="M 100 115 C 128 108 140 75 125 48 C 112 68 102 90 100 115 Z" fill="url(#tulipPetalGrad)" opacity="0.9" />
+                        <path d="M 100 118 C 82 92 84 52 100 36 C 116 52 118 92 100 118 Z" fill="url(#tulipPetalGrad)" />
+                        <path d="M 100 36 L 100 48" stroke="url(#tulipGoldGrad)" strokeWidth="2" strokeLinecap="round" />
+                        <circle cx="100" cy="32" r="3.5" fill="url(#tulipGoldGrad)" />
                     </svg>
 
                     {showText && (
-                        <div class="text-center mt-2.5 space-y-0.5">
+                        <div class="text-center mt-2 space-y-0.5">
                             <div class={`font-cinzel tracking-widest font-extrabold text-base sm:text-lg ${textLight ? 'text-champagne-200' : 'text-mulberry-950'}`}>
                                 PJ AYOMI
                             </div>
@@ -228,22 +217,18 @@
             return days;
         }
 
-        // Automatic Constraint-Based Schedule Generator with Dynamic Employees
         function generateAutoSchedule(year, month, calendarEvents, employeeList) {
             const monthDays = getDaysInMonth(year, month);
             const schedule = {};
             const activeEmployees = employeeList && employeeList.length > 0 ? employeeList : INITIAL_EMPLOYEES;
             
-            // Filter candidate off dates (Allowed: Sun, Wed, Sat; Mon, Tue, Thu, Fri forbidden)
             const candidateOffDates = monthDays.filter(d => d.isAllowedOffDay && (calendarEvents[d.dateStr]?.isOpen !== false));
 
-            // Track off dates assigned to each employee
             const employeeOffDates = {};
             activeEmployees.forEach(emp => {
                 employeeOffDates[emp.name] = [];
             });
 
-            // Assign 2 off days per employee ensuring constraints:
             activeEmployees.forEach(emp => {
                 const shuffled = [...candidateOffDates].sort(() => 0.5 - Math.random());
                 let assigned = 0;
@@ -251,11 +236,8 @@
                     if (assigned >= 2) break;
                     
                     const offListOnDate = Object.keys(employeeOffDates).filter(name => employeeOffDates[name].includes(d.dateStr));
-                    
-                    // Check max 2 employees total on this date
                     if (offListOnDate.length >= 2) continue;
 
-                    // Check if another employee with the SAME role/department is already off on this date
                     const sameRoleOff = offListOnDate.some(offName => {
                         const existingEmp = activeEmployees.find(e => e.name === offName);
                         return existingEmp && existingEmp.role === emp.role;
@@ -268,7 +250,6 @@
                 }
             });
 
-            // Build Daily Roster
             monthDays.forEach(d => {
                 const dateStr = d.dateStr;
                 const isClosed = calendarEvents[dateStr] && !calendarEvents[dateStr].isOpen;
@@ -286,7 +267,6 @@
                         dailyRoster.assignments[emp.name] = 'KLINIK TUTUP';
                     });
                 } else {
-                    // 1. ADMIN RULES (Rere & Vanka or active admins)
                     const admins = activeEmployees.filter(e => e.role === 'Admin').map(e => e.name);
                     const rereOff = employeeOffDates['Rere']?.includes(dateStr);
                     const vankaOff = employeeOffDates['Vanka']?.includes(dateStr);
@@ -314,7 +294,6 @@
                             }
                         }
                     } else {
-                        // Fallback for custom added Admins
                         admins.forEach((admName, idx) => {
                             if (employeeOffDates[admName]?.includes(dateStr)) {
                                 dailyRoster.assignments[admName] = 'Libur';
@@ -324,7 +303,6 @@
                         });
                     }
 
-                    // 2. THERAPIST RULES
                     const therapists = activeEmployees.filter(e => e.role === 'Terapis').map(e => e.name);
                     const offTherapist = therapists.find(t => employeeOffDates[t]?.includes(dateStr));
 
@@ -364,7 +342,6 @@
                         pagiAssigns.forEach(t => dailyRoster.assignments[t] = 'Pagi');
                         siangAssigns.forEach(t => dailyRoster.assignments[t] = 'Siang');
                     } else {
-                        // Standard day: Therapists working
                         therapists.forEach((tName, idx) => {
                             if (!dailyRoster.assignments[tName]) {
                                 if (tName === 'Belina') dailyRoster.assignments[tName] = d.dayNum % 2 === 1 ? 'Siang' : 'Pagi';
@@ -377,7 +354,6 @@
                         });
                     }
 
-                    // 3. OTHER ROLES (OB, Doctor, etc.)
                     const otherEmployees = activeEmployees.filter(e => !['Admin', 'Terapis'].includes(e.role));
                     otherEmployees.forEach(emp => {
                         if (employeeOffDates[emp.name]?.includes(dateStr)) {
@@ -394,7 +370,6 @@
             return schedule;
         }
 
-        // Rule Validation Engine
         function validateScheduleRules(schedule, year, month, calendarEvents, employeeList) {
             const errors = [];
             const warnings = [];
@@ -422,19 +397,16 @@
                 });
 
                 if (!isClinicClosed) {
-                    // Prohibited Off Days (Mon, Tue, Thu, Fri)
                     if ([1, 2, 4, 5].includes(d.dayOfWeek)) {
                         offEmployees.forEach(emp => {
-                            errors.push(`Hari Libur Terlarang: ${emp.name} libur pada ${d.dayName}, ${dateStr}. Pegawai TIDAK BOLEH libur pada Senin, Selasa, Kamis, & Jumat.`);
+                            errors.push(`Hari Libur Terlarang: ${emp.name} libur pada ${d.dayName}, ${dateStr}. Pegawai tidak boleh libur pada Senin, Selasa, Kamis, & Jumat.`);
                         });
                     }
 
-                    // Max 2 Employees Off on Same Date
                     if (offEmployees.length > 2) {
-                        errors.push(`Batas Maksimal Libur: Terdapat ${offEmployees.length} pegawai libur pada ${dateStr} (Ketentuan: Maksimal 2 pegawai).`);
+                        errors.push(`Batas Maksimal Libur: Terdapat ${offEmployees.length} pegawai libur pada ${dateStr} (Maksimal 2 pegawai).`);
                     }
 
-                    // Off Employees Must Be From Different Divisions
                     if (offEmployees.length === 2) {
                         const role1 = offEmployees[0].role;
                         const role2 = offEmployees[1].role;
@@ -443,7 +415,6 @@
                         }
                     }
 
-                    // Admin Rules
                     const rereShift = roster.assignments['Rere'];
                     const vankaShift = roster.assignments['Vanka'];
 
@@ -452,14 +423,13 @@
                             errors.push(`Konflik Admin: Rere & Vanka libur bersamaan pada tanggal ${dateStr}.`);
                         }
                         if (rereShift === 'Libur' && vankaShift !== 'Full Shift') {
-                            errors.push(`Konflik Shift Admin: Rere libur pada ${dateStr}, Vanka HARUS Full Shift (08.00–21.00).`);
+                            errors.push(`Konflik Shift Admin: Rere libur pada ${dateStr}, Vanka harus Full Shift.`);
                         }
                         if (vankaShift === 'Libur' && rereShift !== 'Full Shift') {
-                            errors.push(`Konflik Shift Admin: Vanka libur pada ${dateStr}, Rere HARUS Full Shift (08.00–21.00).`);
+                            errors.push(`Konflik Shift Admin: Vanka libur pada ${dateStr}, Rere harus Full Shift.`);
                         }
                     }
 
-                    // Forbidden Pair Rules for Therapists
                     const belinaShift = roster.assignments['Belina'];
                     const auraShift = roster.assignments['Aura'];
                     if (belinaShift && auraShift && belinaShift !== 'Libur' && belinaShift === auraShift) {
@@ -489,25 +459,76 @@
         }
 
         // ==========================================
+        // SHIFT BADGE COMPONENT WITH HIGHLIGHT
+        // ==========================================
+        function ShiftBadge({ name, shift, onEdit, isHighlighted }) {
+            const shiftStyles = {
+                'Pagi': 'bg-rose-100 text-rose-950 border-rose-300',
+                'Siang': 'bg-amber-100 text-amber-950 border-amber-300',
+                'Full Shift': 'bg-purple-100 text-purple-950 border-purple-300',
+                'OB': 'bg-emerald-100 text-emerald-950 border-emerald-300',
+                'Libur': 'bg-slate-100 text-slate-500 border-slate-300 opacity-70',
+                'KLINIK TUTUP': 'bg-gray-200 text-gray-700 border-gray-400'
+            };
+
+            const style = shiftStyles[shift] || 'bg-gray-100 text-gray-800 border-gray-300';
+
+            return (
+                <div class={`inline-flex items-center space-x-1 text-[11px] font-bold px-2 py-0.5 rounded-lg border transition-all ${style} ${isHighlighted ? 'ring-2 ring-mulberry-700 scale-105 font-black shadow-md bg-blush-200 text-mulberry-950' : ''}`}>
+                    <span>{name}</span>
+                    {shift === 'Full Shift' && <span class="text-[9px] bg-purple-800 text-white px-1 rounded">FULL</span>}
+                    {onEdit && (
+                        <select 
+                            value={shift} 
+                            onChange={(e) => onEdit(e.target.value)}
+                            class="ml-1 bg-white/90 text-mulberry-950 font-bold border border-mulberry-300 rounded text-[10px] focus:outline-none cursor-pointer px-0.5"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <option value="Pagi">Pagi</option>
+                            <option value="Siang">Siang</option>
+                            <option value="Full Shift">Full</option>
+                            <option value="OB">OB</option>
+                            <option value="Libur">Libur</option>
+                        </select>
+                    )}
+                </div>
+            );
+        }
+
+        // ==========================================
         // MAIN APPLICATION COMPONENT
         // ==========================================
         function App() {
+            // REALTIME BROADCAST CHANNEL (FOR INSTANT TAB-TO-TAB SYNC ON GITHUB PAGES)
+            const syncChannelRef = useRef(null);
+            useEffect(() => {
+                if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+                    syncChannelRef.current = new BroadcastChannel('ayomi_beaute_sync_channel');
+                }
+                return () => {
+                    if (syncChannelRef.current) syncChannelRef.current.close();
+                };
+            }, []);
+
+            const broadcastSync = useCallback((actionType, payload) => {
+                if (syncChannelRef.current) {
+                    syncChannelRef.current.postMessage({ actionType, payload, timestamp: Date.now() });
+                }
+            }, []);
+
             // Dynamic Employees List State
             const [employees, setEmployees] = useState(() => {
                 const saved = localStorage.getItem('ayomi_employees');
                 return saved ? JSON.parse(saved) : INITIAL_EMPLOYEES;
             });
 
-            // Save employees to localStorage
             useEffect(() => {
                 localStorage.setItem('ayomi_employees', JSON.stringify(employees));
             }, [employees]);
 
-            // Form State for Adding New Employee
             const [newEmpForm, setNewEmpForm] = useState({ name: '', role: 'Terapis', defaultShift: 'Terapis' });
             const [deletingEmpId, setDeletingEmpId] = useState(null);
 
-            // Dynamic User Accounts
             const accounts = useMemo(() => [
                 { username: 'manager', name: 'Manager Klinik', role: 'manager', pass: '@Adeeva0506' },
                 ...employees.map(emp => ({
@@ -519,25 +540,56 @@
                 }))
             ], [employees]);
 
-            // Auth State
             const [currentUser, setCurrentUser] = useState(null);
             const [loginForm, setLoginForm] = useState({ username: '', pass: '' });
             const [authError, setAuthError] = useState('');
 
-            // File Upload Ref
             const fileInputRef = useRef(null);
 
-            // App Navigation State
             const [activeTab, setActiveTab] = useState('dashboard'); 
             const [year, setYear] = useState(2026);
             const [month, setMonth] = useState(11); 
 
-            // Calendar & Events
-            const [calendarEvents, setCalendarEvents] = useState(INITIAL_CALENDAR_EVENTS);
+            // Calendar & Events Persistence
+            const [calendarEvents, setCalendarEvents] = useState(() => {
+                const saved = localStorage.getItem('ayomi_calendar_events');
+                return saved ? JSON.parse(saved) : INITIAL_CALENDAR_EVENTS;
+            });
+
+            useEffect(() => {
+                localStorage.setItem('ayomi_calendar_events', JSON.stringify(calendarEvents));
+            }, [calendarEvents]);
+
             const [editingEvent, setEditingEvent] = useState(null);
 
-            // Dynamic Schedules Store keyed by "YYYY-MM"
+            // ANNOUNCEMENTS STATE (PENGUMUMAN)
+            const [announcements, setAnnouncements] = useState(() => {
+                const saved = localStorage.getItem('ayomi_announcements');
+                return saved ? JSON.parse(saved) : INITIAL_ANNOUNCEMENTS;
+            });
+
+            useEffect(() => {
+                localStorage.setItem('ayomi_announcements', JSON.stringify(announcements));
+            }, [announcements]);
+
+            const [newAnnForm, setNewAnnForm] = useState({
+                title: '',
+                category: 'Informasi Umum',
+                content: '',
+                priority: 'normal',
+                targetRole: 'Semua Pegawai',
+                isPinned: false
+            });
+            const [editingAnnId, setEditingAnnId] = useState(null);
+            const [annSearch, setAnnSearch] = useState('');
+            const [annCategoryFilter, setAnnCategoryFilter] = useState('ALL');
+
+            // Schedules Store Persisted in LocalStorage
             const [schedulesStore, setSchedulesStore] = useState(() => {
+                const saved = localStorage.getItem('ayomi_schedules_store');
+                if (saved) {
+                    try { return JSON.parse(saved); } catch (e) { console.error(e); }
+                }
                 const initialKey = '2026-11';
                 return {
                     [initialKey]: {
@@ -547,6 +599,10 @@
                     }
                 };
             });
+
+            useEffect(() => {
+                localStorage.setItem('ayomi_schedules_store', JSON.stringify(schedulesStore));
+            }, [schedulesStore]);
 
             const currentMonthKey = `${year}-${String(month).padStart(2, '0')}`;
 
@@ -565,35 +621,87 @@
             const isPublished = currentScheduleData.isPublished;
             const lastPublishedAt = currentScheduleData.lastPublishedAt;
 
-            // Audit Trail
-            const [auditLogs, setAuditLogs] = useState([
-                { timestamp: '2026-10-28 09:00', user: 'Manager Klinik', action: 'Terbit Jadwal', details: 'Jadwal November 2026 resmi diterbitkan.' }
-            ]);
+            const [auditLogs, setAuditLogs] = useState(() => {
+                const saved = localStorage.getItem('ayomi_audit_logs');
+                return saved ? JSON.parse(saved) : [
+                    { timestamp: '2026-10-28 09:00', user: 'Manager Klinik', action: 'Terbit Jadwal', details: 'Jadwal November 2026 resmi diterbitkan.' }
+                ];
+            });
 
-            // Date Row Edit Modal State
+            useEffect(() => {
+                localStorage.setItem('ayomi_audit_logs', JSON.stringify(auditLogs));
+            }, [auditLogs]);
+
             const [editingDateRow, setEditingDateRow] = useState(null);
-
-            // Toast Alert State
             const [toastMessage, setToastMessage] = useState(null);
-
-            // Filters
             const [searchStaff, setSearchStaff] = useState('');
             const [filterShift, setFilterShift] = useState('ALL');
 
-            const triggerToast = (msg, type = 'info') => {
+            const triggerToast = useCallback((msg, type = 'info') => {
                 setToastMessage({ msg, type });
-                setTimeout(() => setToastMessage(null), 4000);
-            };
+                setTimeout(() => setToastMessage(null), 4500);
+            }, []);
+
+            // REAL-TIME LISTENER FOR MULTI-TAB & MULTI-WINDOW SYNC
+            useEffect(() => {
+                const handleBroadcastMessage = (event) => {
+                    const data = event.data;
+                    if (!data) return;
+
+                    if (data.actionType === 'UPDATE_SCHEDULE_STORE') {
+                        setSchedulesStore(data.payload);
+                        triggerToast("📢 Real-time Update: Manager telah meng-update jadwal operasional!", "info");
+                    } else if (data.actionType === 'UPDATE_ANNOUNCEMENTS') {
+                        setAnnouncements(data.payload);
+                        triggerToast("📢 Pengumuman Baru: Manager menerbitkan pengumuman terbaru!", "success");
+                    } else if (data.actionType === 'UPDATE_EMPLOYEES') {
+                        setEmployees(data.payload);
+                    } else if (data.actionType === 'UPDATE_CALENDAR') {
+                        setCalendarEvents(data.payload);
+                    }
+                };
+
+                if (syncChannelRef.current) {
+                    syncChannelRef.current.onmessage = handleBroadcastMessage;
+                }
+
+                // Storage event fallback for cross-tab updates
+                const handleStorageEvent = (e) => {
+                    if (e.key === 'ayomi_schedules_store' && e.newValue) {
+                        try {
+                            setSchedulesStore(JSON.parse(e.newValue));
+                            triggerToast("⚡ Perubahan Jadwal Terdeteksi secara Real-Time!", "info");
+                        } catch(err){}
+                    }
+                    if (e.key === 'ayomi_announcements' && e.newValue) {
+                        try {
+                            setAnnouncements(JSON.parse(e.newValue));
+                            triggerToast("📢 Pengumuman Terkini telah diperbarui oleh Manager!", "success");
+                        } catch(err){}
+                    }
+                    if (e.key === 'ayomi_employees' && e.newValue) {
+                        try { setEmployees(JSON.parse(e.newValue)); } catch(err){}
+                    }
+                };
+
+                window.addEventListener('storage', handleStorageEvent);
+                return () => {
+                    window.removeEventListener('storage', handleStorageEvent);
+                };
+            }, [triggerToast]);
 
             const logAction = (action, details) => {
                 const now = new Date();
                 const timeStr = now.toISOString().replace('T', ' ').substring(0, 16);
-                setAuditLogs(prev => [{
-                    timestamp: timeStr,
-                    user: currentUser ? currentUser.name : 'System',
-                    action,
-                    details
-                }, ...prev]);
+                setAuditLogs(prev => {
+                    const updated = [{
+                        timestamp: timeStr,
+                        user: currentUser ? currentUser.name : 'System',
+                        action,
+                        details
+                    }, ...prev];
+                    return updated;
+                });
             };
 
             const validationReport = useMemo(() => {
@@ -608,7 +716,98 @@
                 return true;
             };
 
-            // Employee Management Handlers
+            const updateActiveSchedule = (newSchedule, newIsPublished, newPublishedAt) => {
+                setSchedulesStore(prev => {
+                    const updated = {
+                        ...prev,
+                        [currentMonthKey]: {
+                            schedule: newSchedule !== undefined ? newSchedule : (prev[currentMonthKey]?.schedule || schedule),
+                            isPublished: newIsPublished !== undefined ? newIsPublished : (prev[currentMonthKey]?.isPublished ?? false),
+                            lastPublishedAt: newPublishedAt !== undefined ? newPublishedAt : (prev[currentMonthKey]?.lastPublishedAt || null)
+                        }
+                    };
+                    broadcastSync('UPDATE_SCHEDULE_STORE', updated);
+                    return updated;
+                });
+            };
+
+            // ANNOUNCEMENT ACTIONS (MANAGER)
+            const handleSaveAnnouncement = (e) => {
+                if (e) e.preventDefault();
+                if (!checkManagerAccess("Kelola Pengumuman")) return;
+
+                if (!newAnnForm.title.trim() || !newAnnForm.content.trim()) {
+                    triggerToast("Judul dan isi pengumuman tidak boleh kosong.", "error");
+                    return;
+                }
+
+                const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 16);
+
+                if (editingAnnId) {
+                    const updatedList = announcements.map(ann => ann.id === editingAnnId ? {
+                        ...ann,
+                        title: newAnnForm.title.trim(),
+                        category: newAnnForm.category,
+                        content: newAnnForm.content.trim(),
+                        priority: newAnnForm.priority,
+                        targetRole: newAnnForm.targetRole,
+                        isPinned: newAnnForm.isPinned,
+                        updatedAt: nowStr
+                    } : ann);
+
+                    setAnnouncements(updatedList);
+                    broadcastSync('UPDATE_ANNOUNCEMENTS', updatedList);
+                    logAction("Edit Pengumuman", `Memperbarui pengumuman: "${newAnnForm.title}"`);
+                    triggerToast("Pengumuman berhasil diperbarui dan dipublikasikan real-time!", "success");
+                    setEditingAnnId(null);
+                } else {
+                    const newAnn = {
+                        id: `ann_${Date.now()}`,
+                        title: newAnnForm.title.trim(),
+                        category: newAnnForm.category,
+                        content: newAnnForm.content.trim(),
+                        priority: newAnnForm.priority,
+                        targetRole: newAnnForm.targetRole,
+                        isPinned: newAnnForm.isPinned,
+                        createdAt: nowStr,
+                        author: currentUser.name
+                    };
+
+                    const updatedList = [newAnn, ...announcements];
+                    setAnnouncements(updatedList);
+                    broadcastSync('UPDATE_ANNOUNCEMENTS', updatedList);
+                    logAction("Buat Pengumuman", `Menerbitkan pengumuman baru: "${newAnnForm.title}"`);
+                    triggerToast("Pengumuman baru berhasil diterbitkan dan langsung muncul di akun pegawai!", "success");
+                }
+
+                setNewAnnForm({
+                    title: '',
+                    category: 'Informasi Umum',
+                    content: '',
+                    priority: 'normal',
+                    targetRole: 'Semua Pegawai',
+                    isPinned: false
+                });
+            };
+
+            const handleDeleteAnnouncement = (id) => {
+                if (!checkManagerAccess("Hapus Pengumuman")) return;
+                const annToDelete = announcements.find(a => a.id === id);
+                const updatedList = announcements.filter(a => a.id !== id);
+                setAnnouncements(updatedList);
+                broadcastSync('UPDATE_ANNOUNCEMENTS', updatedList);
+                logAction("Hapus Pengumuman", `Menghapus pengumuman: "${annToDelete?.title || id}"`);
+                triggerToast("Pengumuman berhasil dihapus.", "info");
+            };
+
+            const handleTogglePinAnnouncement = (id) => {
+                if (!checkManagerAccess("Pin Pengumuman")) return;
+                const updatedList = announcements.map(ann => ann.id === id ? { ...ann, isPinned: !ann.isPinned } : ann);
+                setAnnouncements(updatedList);
+                broadcastSync('UPDATE_ANNOUNCEMENTS', updatedList);
+                triggerToast("Status pin pengumuman diperbarui.", "info");
+            };
+
             const handleAddEmployee = (e) => {
                 if (e) e.preventDefault();
                 if (!checkManagerAccess("Tambah Pegawai")) return;
@@ -634,6 +833,7 @@
 
                 const updatedList = [...employees, newEmp];
                 setEmployees(updatedList);
+                broadcastSync('UPDATE_EMPLOYEES', updatedList);
                 setNewEmpForm({ name: '', role: 'Terapis', defaultShift: 'Terapis' });
 
                 if (!isPublished) {
@@ -652,6 +852,7 @@
 
                 const updatedList = employees.filter(e => e.id !== empId);
                 setEmployees(updatedList);
+                broadcastSync('UPDATE_EMPLOYEES', updatedList);
                 setDeletingEmpId(null);
 
                 if (!isPublished) {
@@ -663,17 +864,6 @@
                 triggerToast(`Pegawai ${empToDelete.name} berhasil dihapus dari sistem.`, "info");
             };
 
-            const updateActiveSchedule = (newSchedule, newIsPublished, newPublishedAt) => {
-                setSchedulesStore(prev => ({
-                    ...prev,
-                    [currentMonthKey]: {
-                        schedule: newSchedule !== undefined ? newSchedule : (prev[currentMonthKey]?.schedule || schedule),
-                        isPublished: newIsPublished !== undefined ? newIsPublished : (prev[currentMonthKey]?.isPublished ?? false),
-                        lastPublishedAt: newPublishedAt !== undefined ? newPublishedAt : (prev[currentMonthKey]?.lastPublishedAt || null)
-                    }
-                }));
-            };
-
             const handleGenerateSchedule = () => {
                 if (!checkManagerAccess("Generate Schedule")) return;
                 if (isPublished) {
@@ -683,7 +873,7 @@
                 const newSched = generateAutoSchedule(year, month, calendarEvents, employees);
                 updateActiveSchedule(newSched, false, lastPublishedAt);
                 logAction("Generate Schedule", `Generator otomatis membuat draft jadwal baru bulan ${MONTH_NAMES[month - 1]} ${year}`);
-                triggerToast(`Jadwal otomatis ${MONTH_NAMES[month - 1]} ${year} berhasil digenerate! Silakan periksa validasi.`, "success");
+                triggerToast(`Jadwal otomatis ${MONTH_NAMES[month - 1]} ${year} berhasil digenerate!`, "success");
             };
 
             const handleCellEdit = (dateStr, empName, newShift) => {
@@ -708,7 +898,7 @@
 
                 updateActiveSchedule(updatedSchedule, false, lastPublishedAt);
                 logAction("Edit Shift", `Mengubah ${empName} pada ${dateStr} dari '${prevShift}' menjadi '${newShift}'`);
-                triggerToast(`Shift ${empName} pada ${dateStr} diperbarui.`, "info");
+                triggerToast(`Shift ${empName} pada ${dateStr} diperbarui real-time.`, "info");
             };
 
             const handlePublishSchedule = () => {
@@ -720,7 +910,7 @@
                 const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 16);
                 updateActiveSchedule(schedule, true, nowStr);
                 logAction("Terbit Jadwal", `Jadwal resmi bulan ${MONTH_NAMES[month - 1]} ${year} telah dipublikasikan.`);
-                triggerToast(`Jadwal resmi ${MONTH_NAMES[month - 1]} ${year} berhasil dipublikasikan untuk seluruh pegawai!`, "success");
+                triggerToast(`Jadwal resmi ${MONTH_NAMES[month - 1]} ${year} berhasil dipublikasikan real-time untuk seluruh pegawai!`, "success");
             };
 
             const handleUnpublishSchedule = () => {
@@ -747,6 +937,19 @@
                 setCurrentUser(null);
                 triggerToast("Anda telah keluar dari sistem.", "info");
             };
+
+            const filteredAnnouncements = useMemo(() => {
+                return announcements.filter(ann => {
+                    const matchesCategory = annCategoryFilter === 'ALL' || ann.category === annCategoryFilter;
+                    const matchesSearch = ann.title.toLowerCase().includes(annSearch.toLowerCase()) || ann.content.toLowerCase().includes(annSearch.toLowerCase());
+                    const matchesTarget = !currentUser || currentUser.role === 'manager' || ann.targetRole === 'Semua Pegawai' || ann.targetRole === currentUser.role;
+                    return matchesCategory && matchesSearch && matchesTarget;
+                }).sort((a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0));
+            }, [announcements, annCategoryFilter, annSearch, currentUser]);
+
+            const pinnedAnnouncements = useMemo(() => {
+                return announcements.filter(a => a.isPinned && (!currentUser || currentUser.role === 'manager' || a.targetRole === 'Semua Pegawai' || a.targetRole === currentUser.role));
+            }, [announcements, currentUser]);
 
             const recapData = useMemo(() => {
                 const monthDays = getDaysInMonth(year, month);
@@ -921,7 +1124,7 @@
 
                         updateActiveSchedule(updatedSchedule, false, lastPublishedAt);
                         logAction("Upload Excel", `Mengimpor ${updatedCount} baris jadwal dari file Excel (${file.name})`);
-                        triggerToast(`Berhasil mengimpor ${updatedCount} tanggal jadwal dari Excel! Silakan periksa status validasi.`, "success");
+                        triggerToast(`Berhasil mengimpor ${updatedCount} tanggal jadwal dari Excel!`, "success");
                     } catch (err) {
                         console.error(err);
                         triggerToast("Gagal membaca file Excel. Pastikan format file .xlsx / .xls valid.", "error");
@@ -932,17 +1135,16 @@
                 reader.readAsBinaryString(file);
             };
 
-            // MANDATORY INITIAL LOGIN SCREEN (If not logged in)
+            // MANDATORY INITIAL LOGIN SCREEN
             if (!currentUser) {
                 return (
                     <div class="min-h-screen bg-gradient-to-br from-mulberry-950 via-mulberry-900 to-mulberry-950 flex items-center justify-center p-4">
                         <div class="bg-cream-50/95 backdrop-blur-xl rounded-3xl shadow-2xl max-w-md w-full p-8 space-y-6 border border-champagne-300/60">
                             
-                            {/* BRANDING FLOWER LOGO */}
                             <div class="text-center space-y-3">
                                 <ClinicLogo size="lg" showText={true} />
                                 <div class="text-xs text-mulberry-800 font-semibold pt-1 tracking-wide">
-                                    Employee Scheduling & Shift Management System
+                                    Employee Scheduling & Announcement System
                                 </div>
                             </div>
 
@@ -964,7 +1166,7 @@
                                         placeholder="Masukkan username..."
                                         value={loginForm.username}
                                         onChange={(e) => setLoginForm(prev => ({ ...prev, username: e.target.value }))}
-                                        class="w-full border border-rosegold-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-champagne-500 focus:ring-2 focus:ring-champagne-200 font-medium bg-white"
+                                        class="w-full border border-rosegold-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-champagne-500 focus:ring-2 focus:ring-champagne-200 font-medium bg-white text-mulberry-950"
                                     />
                                 </div>
 
@@ -978,7 +1180,7 @@
                                         placeholder="Masukkan kata sandi..."
                                         value={loginForm.pass}
                                         onChange={(e) => setLoginForm(prev => ({ ...prev, pass: e.target.value }))}
-                                        class="w-full border border-rosegold-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-champagne-500 focus:ring-2 focus:ring-champagne-200 font-medium bg-white"
+                                        class="w-full border border-rosegold-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-champagne-500 focus:ring-2 focus:ring-champagne-200 font-medium bg-white text-mulberry-950"
                                     />
                                 </div>
 
@@ -993,7 +1195,7 @@
 
                             <div class="text-center pt-4 border-t border-rosegold-200/60">
                                 <span class="text-[11px] text-mulberry-800 font-medium">
-                                    Sistem Otomasi Penjadwalan — PJ AYOMI BEAUTE CLINIC DAMPIT
+                                    Sistem Penjadwalan & Real-Time Sync — PJ AYOMI BEAUTE CLINIC DAMPIT
                                 </span>
                             </div>
                         </div>
@@ -1001,14 +1203,13 @@
                 );
             }
 
-            // MAIN DASHBOARD INTERFACE (FOR LOGGED IN USERS)
+            // MAIN DASHBOARD INTERFACE
             return (
                 <div class="min-h-screen pb-12">
-                    {/* TOP NAVIGATION BAR WITH DEEP MULBERRY & CHAMPAGNE VIBRANCY */}
+                    {/* TOP NAVIGATION BAR */}
                     <header class="bg-gradient-to-r from-mulberry-950 via-mulberry-900 to-mulberry-950 text-white shadow-2xl sticky top-0 z-40 border-b border-champagne-400/30 no-print">
                         <div class="max-w-7xl mx-auto px-4 py-3 flex flex-col md:flex-row items-center justify-between gap-3">
                             
-                            {/* LOGO & TITLE */}
                             <div class="flex items-center space-x-3.5">
                                 <ClinicLogo size="sm" />
                                 <div>
@@ -1016,34 +1217,41 @@
                                         PJ AYOMI BEAUTE CLINIC - DAMPIT
                                     </h1>
                                     <div class="text-[11px] text-blush-100/90 flex items-center space-x-2 font-medium">
-                                        <span>System Penjadwalan Pegawai</span>
+                                        <span>Real-time Scheduling & Announcement</span>
                                         <span>•</span>
                                         <span class="bg-mulberry-800 text-champagne-200 border border-champagne-400/40 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase">{currentUser.role}</span>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* PERIODE PICKER */}
-                            <div class="flex items-center space-x-2 bg-mulberry-950/90 p-1.5 rounded-2xl border border-champagne-400/40 shadow-inner">
-                                <span class="text-xs font-semibold text-champagne-200 pl-2">Periode:</span>
-                                <select 
-                                    value={month} 
-                                    onChange={(e) => setMonth(Number(e.target.value))}
-                                    class="bg-mulberry-900 text-champagne-100 text-xs font-bold rounded-xl px-2.5 py-1.5 focus:outline-none border border-champagne-400/30 cursor-pointer"
-                                >
-                                    {MONTH_NAMES.map((m, idx) => (
-                                        <option key={idx} value={idx + 1}>{m}</option>
-                                    ))}
-                                </select>
-                                <select 
-                                    value={year} 
-                                    onChange={(e) => setYear(Number(e.target.value))}
-                                    class="bg-mulberry-900 text-champagne-100 text-xs font-bold rounded-xl px-2.5 py-1.5 focus:outline-none border border-champagne-400/30 cursor-pointer"
-                                >
-                                    {[2024, 2025, 2026, 2027, 2028, 2029, 2030].map(y => (
-                                        <option key={y} value={y}>{y}</option>
-                                    ))}
-                                </select>
+                            {/* PERIODE PICKER & REAL-TIME STATUS */}
+                            <div class="flex items-center space-x-2">
+                                <div class="flex items-center space-x-2 bg-mulberry-950/90 p-1.5 rounded-2xl border border-champagne-400/40 shadow-inner">
+                                    <span class="text-xs font-semibold text-champagne-200 pl-2">Periode:</span>
+                                    <select 
+                                        value={month} 
+                                        onChange={(e) => setMonth(Number(e.target.value))}
+                                        class="bg-mulberry-900 text-champagne-100 text-xs font-bold rounded-xl px-2.5 py-1.5 focus:outline-none border border-champagne-400/30 cursor-pointer"
+                                    >
+                                        {MONTH_NAMES.map((m, idx) => (
+                                            <option key={idx} value={idx + 1}>{m}</option>
+                                        ))}
+                                    </select>
+                                    <select 
+                                        value={year} 
+                                        onChange={(e) => setYear(Number(e.target.value))}
+                                        class="bg-mulberry-900 text-champagne-100 text-xs font-bold rounded-xl px-2.5 py-1.5 focus:outline-none border border-champagne-400/30 cursor-pointer"
+                                    >
+                                        {[2024, 2025, 2026, 2027, 2028, 2029, 2030].map(y => (
+                                            <option key={y} value={y}>{y}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div class="hidden lg:flex items-center space-x-1.5 bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 px-3 py-1.5 rounded-2xl text-[11px] font-bold">
+                                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                                    <span>Realtime Active</span>
+                                </div>
                             </div>
 
                             {/* USER ACCOUNT & LOGOUT */}
@@ -1063,7 +1271,7 @@
                             </div>
                         </div>
 
-                        {/* LUXURIOUS TAB NAVIGATION */}
+                        {/* TAB NAVIGATION */}
                         <div class="bg-mulberry-950/95 border-t border-champagne-400/20 px-4 overflow-x-auto">
                             <div class="max-w-7xl mx-auto flex space-x-2 py-1">
                                 <button 
@@ -1087,9 +1295,24 @@
                                 </button>
 
                                 <button 
+                                    onClick={() => setActiveTab('announcements')}
+                                    class={`px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center space-x-1.5 relative ${
+                                        activeTab === 'announcements' ? 'bg-gradient-to-r from-champagne-500 to-rosegold-500 text-mulberry-950 shadow-md font-black' : 'text-blush-100/70 hover:text-white hover:bg-white/10'
+                                    }`}
+                                >
+                                    <span>📢</span>
+                                    <span>Pengumuman Klinik</span>
+                                    {announcements.length > 0 && (
+                                        <span class="bg-mulberry-800 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-1 border border-champagne-300">
+                                            {announcements.length}
+                                        </span>
+                                    )}
+                                </button>
+
+                                <button 
                                     onClick={() => setActiveTab('recap')}
                                     class={`px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center space-x-1.5 ${
-                                        activeTab === 'recap' ? 'bg-gradient-to-r from-champagne-500 to-rosegold-500 text-mulberry-950 shadow-md font-black' : 'text-blush-100/70 hover:text-white hover:bg-white/10'
+                                        activeTab === 'recap' ? 'bg-gradient-to-r from-rosegold-600 to-mulberry-800 text-white shadow-md' : 'text-blush-100/70 hover:text-white hover:bg-white/10'
                                     }`}
                                 >
                                     <span>📊</span>
@@ -1133,14 +1356,14 @@
                         </div>
                     </header>
 
-                    {/* TOAST ALERT NOTIFICATION */}
+                    {/* TOAST NOTIFICATION */}
                     {toastMessage && (
-                        <div class="fixed bottom-5 right-5 z-50 no-print">
-                            <div class={`px-4 py-3 rounded-2xl shadow-2xl text-xs font-bold flex items-center space-x-2 text-white border ${
+                        <div class="fixed bottom-5 right-5 z-50 no-print animate-bounce">
+                            <div class={`px-5 py-3.5 rounded-2xl shadow-2xl text-xs font-bold flex items-center space-x-2 text-white border ${
                                 toastMessage.type === 'error' ? 'bg-mulberry-800 border-rosegold-400' :
                                 toastMessage.type === 'success' ? 'bg-gradient-to-r from-rosegold-500 to-mulberry-700 border-champagne-300' : 'bg-mulberry-950 border-champagne-400'
                             }`}>
-                                <span>{toastMessage.type === 'error' ? '🚨' : toastMessage.type === 'success' ? '✅' : 'ℹ️'}</span>
+                                <span>{toastMessage.type === 'error' ? '🚨' : toastMessage.type === 'success' ? '✅' : '📢'}</span>
                                 <span>{toastMessage.msg}</span>
                             </div>
                         </div>
@@ -1154,7 +1377,63 @@
                         {/* ========================================================= */}
                         {activeTab === 'dashboard' && (
                             <div class="space-y-6">
-                                {/* STATUS BANNER WITH ELEGANT ROSE GOLD & CREAM GRADIENT */}
+                                {/* EMPLOYEE WELCOME BANNER */}
+                                {currentUser.role === 'employee' && (
+                                    <div class="bg-gradient-to-r from-rosegold-500 via-mulberry-700 to-mulberry-900 p-6 rounded-3xl text-white shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4 border border-champagne-300/40">
+                                        <div>
+                                            <div class="text-xs uppercase font-bold text-champagne-200 tracking-wider">Dashboard Pegawai</div>
+                                            <h2 class="text-xl font-bold font-cinzel text-white mt-0.5">
+                                                Selamat Datang, {currentUser.name}!
+                                            </h2>
+                                            <p class="text-xs text-blush-100 mt-1 font-medium">
+                                                Aplikasi terhubung secara real-time. Setiap penyesuaian jadwal atau pengumuman dari Manager akan langsung muncul di akun Anda.
+                                            </p>
+                                        </div>
+
+                                        <div class="bg-white/10 backdrop-blur-md px-5 py-3 rounded-2xl border border-white/20 text-center">
+                                            <div class="text-[10px] text-champagne-200 font-bold uppercase">Status Publikasi Jadwal</div>
+                                            <div class="text-sm font-black mt-0.5 text-white">
+                                                {isPublished ? '✅ RESMI DITERBITKAN' : '⏳ MASIH DRAF'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* PINNED ANNOUNCEMENTS HIGHLIGHT BANNER */}
+                                {pinnedAnnouncements.length > 0 && (
+                                    <div class="space-y-3">
+                                        <div class="flex items-center space-x-2 text-xs font-bold text-mulberry-900 uppercase tracking-wider">
+                                            <span>📌</span>
+                                            <span>Pengumuman Penting dari Manager</span>
+                                        </div>
+
+                                        {pinnedAnnouncements.map(ann => (
+                                            <div key={ann.id} class="bg-gradient-to-r from-champagne-100 via-cream-50 to-blush-100 p-5 rounded-3xl border-2 border-champagne-400/80 shadow-md flex flex-col sm:flex-row items-start justify-between gap-4 relative overflow-hidden">
+                                                <div class="space-y-1 z-10">
+                                                    <div class="flex items-center space-x-2">
+                                                        <span class="bg-mulberry-800 text-champagne-200 font-extrabold text-[10px] px-2.5 py-0.5 rounded-full uppercase">
+                                                            {ann.category}
+                                                        </span>
+                                                        <span class="text-[10px] font-bold text-slate-500">
+                                                            Diterbitkan: {ann.createdAt} oleh {ann.author}
+                                                        </span>
+                                                    </div>
+                                                    <h3 class="font-bold text-mulberry-950 text-base">{ann.title}</h3>
+                                                    <p class="text-xs text-slate-700 leading-relaxed font-medium">{ann.content}</p>
+                                                </div>
+
+                                                <button 
+                                                    onClick={() => setActiveTab('announcements')}
+                                                    class="bg-gradient-to-r from-mulberry-700 to-mulberry-900 text-champagne-200 text-xs font-bold px-4 py-2 rounded-xl whitespace-nowrap shadow border border-champagne-300/30 self-start sm:self-center"
+                                                >
+                                                    Lihat Semua Pengumuman ➔
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* STATUS BANNER */}
                                 <div class="bg-gradient-to-r from-cream-50 via-blush-50 to-cream-100 p-6 rounded-3xl border border-rosegold-200/80 shadow-lg flex flex-col md:flex-row items-center justify-between gap-4 relative overflow-hidden">
                                     <div class="absolute -right-10 -bottom-10 opacity-10 pointer-events-none">
                                         <ClinicLogo size="xl" />
@@ -1179,13 +1458,12 @@
                                             </div>
                                             <p class="text-xs text-slate-600 mt-1 font-medium">
                                                 {isPublished 
-                                                    ? `Diterbitkan pada: ${lastPublishedAt || '-'}. Seluruh pegawai dapat melihat jadwal resmi ini.`
+                                                    ? `Diterbitkan pada: ${lastPublishedAt || '-'}. Perubahan oleh Manager disinkronkan secara real-time.`
                                                     : 'Jadwal masih dalam bentuk draf. Hanya Manager yang dapat melakukan penyesuaian.'}
                                             </p>
                                         </div>
                                     </div>
 
-                                    {/* VALIDATION STATUS PILL */}
                                     <div class="text-right flex items-center space-x-3">
                                         <div class={`px-4 py-2.5 rounded-2xl text-xs font-black border shadow-sm ${
                                             validationReport.status === 'VALID' ? 'bg-cream-100 text-mulberry-800 border-champagne-300' :
@@ -1210,11 +1488,11 @@
 
                                         <div class="flex items-center justify-between">
                                             <h3 class="font-extrabold text-mulberry-950 flex items-center space-x-2 text-base">
-                                                <span>⚡ Control Panel Manager</span>
+                                                <span>⚡ Control Panel Manager & Publishing</span>
                                             </h3>
                                             {isPublished && (
                                                 <div class="text-xs font-bold bg-champagne-100 text-mulberry-900 border border-champagne-300 px-3.5 py-1 rounded-full shadow-sm">
-                                                    🔒 Jadwal Terbit & Terkunci — Pengubahan Jadwal Diberhentikan
+                                                    🔒 Jadwal Terbit & Terkunci — Tarik Jadwal Untuk Revisi
                                                 </div>
                                             )}
                                         </div>
@@ -1259,10 +1537,10 @@
                                             {!isPublished ? (
                                                 <button 
                                                     onClick={handlePublishSchedule}
-                                                    class="bg-gradient-to-r from-champagne-500 via-rosegold-500 to-mulberry-700 hover:from-champagne-600 hover:to-mulberry-800 text-white font-black px-4 py-2.5 rounded-xl shadow-md shadow-champagne-200 text-xs flex items-center space-x-2 transition border border-champagne-300/40"
+                                                    class="bg-gradient-to-r from-champagne-500 via-rosegold-500 to-mulberry-700 hover:from-champagne-600 hover:to-mulberry-800 text-white font-black px-4 py-2.5 rounded-xl shadow-md shadow-champagne-200 text-xs flex items-center space-x-2 transition border border-champagne-300/40 animate-pulse"
                                                 >
                                                     <span>📢</span>
-                                                    <span>Terbitkan Jadwal Resmi</span>
+                                                    <span>Terbitkan Jadwal Resmi (Real-Time)</span>
                                                 </button>
                                             ) : (
                                                 <button 
@@ -1298,7 +1576,7 @@
                                     <div class="bg-white rounded-3xl border border-rosegold-200 shadow-md overflow-hidden">
                                         <div class="bg-gradient-to-r from-mulberry-950 via-mulberry-900 to-mulberry-950 text-champagne-200 p-4 font-bold flex items-center justify-between border-b border-champagne-400/30">
                                             <div class="flex items-center space-x-2">
-                                                <span>⚖️ Status Diagnostics System & Constraints Check</span>
+                                                <span>⚖️ Diagnostics System & Rule Constraints</span>
                                             </div>
                                             <span class="text-xs bg-mulberry-800 border border-champagne-400/30 px-3 py-1 rounded-full text-champagne-200 font-mono">
                                                 Rules Checked
@@ -1342,14 +1620,13 @@
                         {/* ========================================================= */}
                         {activeTab === 'schedule' && (
                             <div class="space-y-4">
-                                {/* Lock Banner for Manager when published */}
                                 {currentUser.role === 'manager' && isPublished && (
                                     <div class="bg-cream-100 border-2 border-champagne-400 p-4 rounded-2xl text-mulberry-950 flex items-center justify-between shadow-sm">
                                         <div class="flex items-center space-x-3">
                                             <span class="text-2xl">🔒</span>
                                             <div>
                                                 <div class="font-bold text-sm">Jadwal Telah Diterbitkan & Terkunci Dari Pengubahan</div>
-                                                <div class="text-xs text-mulberry-800">Aturan Keamanan: Jadwal yang sudah resmi terbit tidak dapat diubah secara sengaja maupun tidak sengaja. Klik tombol <strong>Tarik Jadwal</strong> untuk melakukan revisi.</div>
+                                                <div class="text-xs text-mulberry-800">Aturan Keamanan: Jadwal yang sudah resmi terbit tidak dapat diubah. Klik tombol <strong>Tarik Jadwal</strong> jika ingin merevisi.</div>
                                             </div>
                                         </div>
                                         <button 
@@ -1381,7 +1658,7 @@
                                             placeholder="Cari nama pegawai..."
                                             value={searchStaff}
                                             onChange={(e) => setSearchStaff(e.target.value)}
-                                            class="border border-rosegold-200 rounded-xl px-3 py-1.5 text-xs bg-cream-50 font-medium"
+                                            class="border border-rosegold-200 rounded-xl px-3 py-1.5 text-xs bg-cream-50 font-medium text-mulberry-950"
                                         />
                                     </div>
 
@@ -1409,7 +1686,7 @@
                                     )}
                                 </div>
 
-                                {/* TABLE DISPLAY WITH VIBRANT HEADERS */}
+                                {/* TABLE DISPLAY */}
                                 <div class="bg-white rounded-3xl border border-rosegold-200 shadow-md overflow-hidden">
                                     <div class="overflow-x-auto">
                                         <table class="w-full text-left text-xs border-collapse">
@@ -1423,7 +1700,7 @@
                                                     <th class="p-3.5">Terapis Siang</th>
                                                     <th class="p-3.5">Staf Lain</th>
                                                     <th class="p-3.5">Pegawai Libur</th>
-                                                    <th class="p-3.5 text-center">Aksi</th>
+                                                    {currentUser.role === 'manager' && <th class="p-3.5 text-center">Aksi</th>}
                                                 </tr>
                                             </thead>
                                             <tbody class="divide-y divide-rosegold-100/60 font-medium">
@@ -1431,6 +1708,8 @@
                                                     const dateStr = d.dateStr;
                                                     const roster = schedule[dateStr]?.assignments || {};
                                                     const isClosed = schedule[dateStr]?.status === 'CLOSED';
+
+                                                    const loggedEmpName = currentUser.role === 'employee' ? currentUser.name : null;
 
                                                     const adminPagi = employees.filter(e => e.role === 'Admin' && roster[e.name] === 'Pagi').map(e => e.name);
                                                     const adminSiang = employees.filter(e => e.role === 'Admin' && (roster[e.name] === 'Siang' || roster[e.name] === 'Full Shift')).map(e => `${e.name} (${roster[e.name]})`);
@@ -1455,7 +1734,13 @@
                                                             {/* Admin Pagi */}
                                                             <td class="p-3.5">
                                                                 {isClosed ? '-' : adminPagi.map(name => (
-                                                                    <ShiftBadge key={name} name={name} shift="Pagi" onEdit={currentUser.role === 'manager' && !isPublished ? (s) => handleCellEdit(dateStr, name, s) : null} />
+                                                                    <ShiftBadge 
+                                                                        key={name} 
+                                                                        name={name} 
+                                                                        shift="Pagi" 
+                                                                        isHighlighted={loggedEmpName === name}
+                                                                        onEdit={currentUser.role === 'manager' && !isPublished ? (s) => handleCellEdit(dateStr, name, s) : null} 
+                                                                    />
                                                                 ))}
                                                             </td>
 
@@ -1464,7 +1749,15 @@
                                                                 {isClosed ? '-' : adminSiang.map(item => {
                                                                     const name = item.split(' ')[0];
                                                                     const shft = item.includes('Full') ? 'Full Shift' : 'Siang';
-                                                                    return <ShiftBadge key={name} name={name} shift={shft} onEdit={currentUser.role === 'manager' && !isPublished ? (s) => handleCellEdit(dateStr, name, s) : null} />;
+                                                                    return (
+                                                                        <ShiftBadge 
+                                                                            key={name} 
+                                                                            name={name} 
+                                                                            shift={shft} 
+                                                                            isHighlighted={loggedEmpName === name}
+                                                                            onEdit={currentUser.role === 'manager' && !isPublished ? (s) => handleCellEdit(dateStr, name, s) : null} 
+                                                                        />
+                                                                    );
                                                                 })}
                                                             </td>
 
@@ -1473,7 +1766,13 @@
                                                                 {isClosed ? '-' : (
                                                                     <div class="flex flex-wrap gap-1">
                                                                         {terapisPagi.map(name => (
-                                                                            <ShiftBadge key={name} name={name} shift="Pagi" onEdit={currentUser.role === 'manager' && !isPublished ? (s) => handleCellEdit(dateStr, name, s) : null} />
+                                                                            <ShiftBadge 
+                                                                                key={name} 
+                                                                                name={name} 
+                                                                                shift="Pagi" 
+                                                                                isHighlighted={loggedEmpName === name}
+                                                                                onEdit={currentUser.role === 'manager' && !isPublished ? (s) => handleCellEdit(dateStr, name, s) : null} 
+                                                                            />
                                                                         ))}
                                                                     </div>
                                                                 )}
@@ -1484,7 +1783,13 @@
                                                                 {isClosed ? '-' : (
                                                                     <div class="flex flex-wrap gap-1">
                                                                         {terapisSiang.map(name => (
-                                                                            <ShiftBadge key={name} name={name} shift="Siang" onEdit={currentUser.role === 'manager' && !isPublished ? (s) => handleCellEdit(dateStr, name, s) : null} />
+                                                                            <ShiftBadge 
+                                                                                key={name} 
+                                                                                name={name} 
+                                                                                shift="Siang" 
+                                                                                isHighlighted={loggedEmpName === name}
+                                                                                onEdit={currentUser.role === 'manager' && !isPublished ? (s) => handleCellEdit(dateStr, name, s) : null} 
+                                                                            />
                                                                         ))}
                                                                     </div>
                                                                 )}
@@ -1497,7 +1802,15 @@
                                                                         {otherStaff.map(item => {
                                                                             const name = item.split(' ')[0];
                                                                             const shft = roster[name] || 'OB';
-                                                                            return <ShiftBadge key={name} name={name} shift={shft} onEdit={currentUser.role === 'manager' && !isPublished ? (s) => handleCellEdit(dateStr, name, s) : null} />;
+                                                                            return (
+                                                                                <ShiftBadge 
+                                                                                    key={name} 
+                                                                                    name={name} 
+                                                                                    shift={shft} 
+                                                                                    isHighlighted={loggedEmpName === name}
+                                                                                    onEdit={currentUser.role === 'manager' && !isPublished ? (s) => handleCellEdit(dateStr, name, s) : null} 
+                                                                                />
+                                                                            );
                                                                         })}
                                                                     </div>
                                                                 )}
@@ -1508,7 +1821,13 @@
                                                                 {offStaff.length > 0 ? (
                                                                     <div class="flex flex-wrap gap-1">
                                                                         {offStaff.map(name => (
-                                                                            <ShiftBadge key={name} name={name} shift="Libur" onEdit={currentUser.role === 'manager' && !isPublished ? (s) => handleCellEdit(dateStr, name, s) : null} />
+                                                                            <ShiftBadge 
+                                                                                key={name} 
+                                                                                name={name} 
+                                                                                shift="Libur" 
+                                                                                isHighlighted={loggedEmpName === name}
+                                                                                onEdit={currentUser.role === 'manager' && !isPublished ? (s) => handleCellEdit(dateStr, name, s) : null} 
+                                                                            />
                                                                         ))}
                                                                     </div>
                                                                 ) : (
@@ -1517,14 +1836,14 @@
                                                             </td>
 
                                                             {/* Status & Action */}
-                                                            <td class="p-3.5 text-center whitespace-nowrap">
-                                                                <div class="flex items-center justify-center space-x-2">
-                                                                    {isClosed ? (
-                                                                        <span class="bg-champagne-200 text-mulberry-950 border border-champagne-400 font-black px-2.5 py-1 rounded-lg text-[11px]">
-                                                                            KLINIK TUTUP
-                                                                        </span>
-                                                                    ) : (
-                                                                        currentUser.role === 'manager' && (
+                                                            {currentUser.role === 'manager' && (
+                                                                <td class="p-3.5 text-center whitespace-nowrap">
+                                                                    <div class="flex items-center justify-center space-x-2">
+                                                                        {isClosed ? (
+                                                                            <span class="bg-champagne-200 text-mulberry-950 border border-champagne-400 font-black px-2.5 py-1 rounded-lg text-[11px]">
+                                                                                KLINIK TUTUP
+                                                                            </span>
+                                                                        ) : (
                                                                             <button
                                                                                 onClick={() => {
                                                                                     if (isPublished) {
@@ -1539,10 +1858,10 @@
                                                                             >
                                                                                 ✏️ Edit
                                                                             </button>
-                                                                        )
-                                                                    )}
-                                                                </div>
-                                                            </td>
+                                                                        )}
+                                                                    </div>
+                                                                </td>
+                                                            )}
                                                         </tr>
                                                     );
                                                 })}
@@ -1554,29 +1873,230 @@
                         )}
 
                         {/* ========================================================= */}
-                        {/* TAB 3: EMPLOYEE MANAGEMENT MENU (MANAGER ONLY)          */}
+                        {/* TAB 3: ANNOUNCEMENT MENU (PENGUMUMAN KLINIK)             */}
+                        {/* ========================================================= */}
+                        {activeTab === 'announcements' && (
+                            <div class="space-y-6">
+                                {/* MANAGER INPUT FORM FOR ANNOUNCEMENT */}
+                                {currentUser.role === 'manager' && (
+                                    <form onSubmit={handleSaveAnnouncement} class="bg-white p-6 rounded-3xl border border-rosegold-200 shadow-md space-y-4">
+                                        <div class="flex items-center justify-between border-b pb-3 border-rosegold-100">
+                                            <h3 class="font-extrabold text-mulberry-950 text-base flex items-center space-x-2">
+                                                <span>📢 {editingAnnId ? 'Edit Pengumuman Klinik' : 'Buat Pengumuman Baru (Publikasi Real-Time)'}</span>
+                                            </h3>
+                                            {editingAnnId && (
+                                                <button 
+                                                    type="button" 
+                                                    onClick={() => {
+                                                        setEditingAnnId(null);
+                                                        setNewAnnForm({ title: '', category: 'Informasi Umum', content: '', priority: 'normal', targetRole: 'Semua Pegawai', isPinned: false });
+                                                    }} 
+                                                    class="text-xs text-mulberry-700 underline font-bold"
+                                                >
+                                                    Batal Edit
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <div class="md:col-span-2">
+                                                <label class="text-xs font-bold text-mulberry-950 block mb-1">Judul Pengumuman</label>
+                                                <input 
+                                                    type="text" 
+                                                    required
+                                                    placeholder="Masukkan judul pengumuman singkat & jelas..."
+                                                    value={newAnnForm.title}
+                                                    onChange={(e) => setNewAnnForm(prev => ({ ...prev, title: e.target.value }))}
+                                                    class="w-full border border-rosegold-300 rounded-xl p-2.5 text-xs font-semibold bg-cream-50 focus:ring-2 focus:ring-champagne-400 text-mulberry-950"
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label class="text-xs font-bold text-mulberry-950 block mb-1">Kategori Pengumuman</label>
+                                                <select 
+                                                    value={newAnnForm.category}
+                                                    onChange={(e) => setNewAnnForm(prev => ({ ...prev, category: e.target.value }))}
+                                                    class="w-full border border-rosegold-300 rounded-xl p-2.5 text-xs font-bold bg-cream-50 focus:ring-2 focus:ring-champagne-400 text-mulberry-950"
+                                                >
+                                                    <option value="Informasi Umum">Informasi Umum</option>
+                                                    <option value="SOP & Kebijakan">SOP & Kebijakan Klinik</option>
+                                                    <option value="Operasional Klinik">Operasional & Shift</option>
+                                                    <option value="Event & Promo">Event & Promosi</option>
+                                                    <option value="Mendesak / Urgent">Mendesak / Urgent</option>
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label class="text-xs font-bold text-mulberry-950 block mb-1">Isi Pengumuman / Pesan untuk Pegawai</label>
+                                            <textarea 
+                                                required
+                                                rows="3"
+                                                placeholder="Tuliskan pesan lengkap pengumuman di sini..."
+                                                value={newAnnForm.content}
+                                                onChange={(e) => setNewAnnForm(prev => ({ ...prev, content: e.target.value }))}
+                                                class="w-full border border-rosegold-300 rounded-xl p-3 text-xs font-medium bg-cream-50 focus:ring-2 focus:ring-champagne-400 text-mulberry-950"
+                                            ></textarea>
+                                        </div>
+
+                                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
+                                            <div>
+                                                <label class="text-xs font-bold text-mulberry-950 block mb-1">Target Penerima</label>
+                                                <select 
+                                                    value={newAnnForm.targetRole}
+                                                    onChange={(e) => setNewAnnForm(prev => ({ ...prev, targetRole: e.target.value }))}
+                                                    class="w-full border border-rosegold-300 rounded-xl p-2 text-xs font-bold bg-cream-50 text-mulberry-950"
+                                                >
+                                                    <option value="Semua Pegawai">Semua Pegawai</option>
+                                                    <option value="Admin">Khusus Admin</option>
+                                                    <option value="Terapis">Khusus Terapis</option>
+                                                </select>
+                                            </div>
+
+                                            <div class="flex items-center space-x-2 pt-4">
+                                                <input 
+                                                    type="checkbox" 
+                                                    id="pinCheckbox"
+                                                    checked={newAnnForm.isPinned}
+                                                    onChange={(e) => setNewAnnForm(prev => ({ ...prev, isPinned: e.target.checked }))}
+                                                    class="w-4 h-4 text-mulberry-700 rounded focus:ring-champagne-400"
+                                                />
+                                                <label htmlFor="pinCheckbox" class="text-xs font-bold text-mulberry-950 cursor-pointer">
+                                                    📌 Sematkan di Atas (Pinned Highlight)
+                                                </label>
+                                            </div>
+
+                                            <button 
+                                                type="submit"
+                                                class="w-full bg-gradient-to-r from-rosegold-500 via-mulberry-700 to-mulberry-900 hover:from-rosegold-600 hover:to-mulberry-950 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-md border border-champagne-300/30 flex items-center justify-center space-x-2"
+                                            >
+                                                <span>📢</span>
+                                                <span>{editingAnnId ? 'Simpan Perubahan' : 'Terbitkan Pengumuman (Real-Time)'}</span>
+                                            </button>
+                                        </div>
+                                    </form>
+                                )}
+
+                                {/* FILTER & SEARCH ANNOUNCEMENTS */}
+                                <div class="bg-white p-4 rounded-2xl border border-rosegold-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
+                                    <div class="flex items-center space-x-2 w-full sm:w-auto">
+                                        <span class="text-xs font-bold text-mulberry-950">Filter Kategori:</span>
+                                        <select 
+                                            value={annCategoryFilter} 
+                                            onChange={(e) => setAnnCategoryFilter(e.target.value)}
+                                            class="border border-rosegold-200 rounded-xl px-3 py-1.5 text-xs bg-cream-50 font-bold text-mulberry-950"
+                                        >
+                                            <option value="ALL">Semua Kategori</option>
+                                            <option value="Informasi Umum">Informasi Umum</option>
+                                            <option value="SOP & Kebijakan">SOP & Kebijakan</option>
+                                            <option value="Operasional Klinik">Operasional Klinik</option>
+                                            <option value="Event & Promo">Event & Promo</option>
+                                            <option value="Mendesak / Urgent">Mendesak / Urgent</option>
+                                        </select>
+                                    </div>
+
+                                    <input 
+                                        type="text" 
+                                        placeholder="Cari pengumuman..."
+                                        value={annSearch}
+                                        onChange={(e) => setAnnSearch(e.target.value)}
+                                        class="w-full sm:w-64 border border-rosegold-200 rounded-xl px-3 py-1.5 text-xs bg-cream-50 font-medium text-mulberry-950"
+                                    />
+                                </div>
+
+                                {/* ANNOUNCEMENT LIST CARDS */}
+                                <div class="space-y-4">
+                                    {filteredAnnouncements.length === 0 ? (
+                                        <div class="bg-white p-8 rounded-3xl text-center text-slate-500 text-xs border border-rosegold-200">
+                                            Belum ada pengumuman yang sesuai dengan pencarian atau filter.
+                                        </div>
+                                    ) : (
+                                        filteredAnnouncements.map(ann => (
+                                            <div key={ann.id} class={`bg-white p-6 rounded-3xl border transition shadow-sm space-y-3 relative ${
+                                                ann.isPinned ? 'border-2 border-champagne-400 bg-gradient-to-r from-cream-50 to-blush-50' : 'border-rosegold-200 hover:border-rosegold-300'
+                                            }`}>
+                                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-2 border-rosegold-100">
+                                                    <div class="flex items-center space-x-2">
+                                                        {ann.isPinned && <span class="text-sm">📌</span>}
+                                                        <span class={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase ${
+                                                            ann.category.includes('Mendesak') || ann.category.includes('Urgent') ? 'bg-mulberry-800 text-champagne-200' :
+                                                            ann.category.includes('SOP') ? 'bg-purple-800 text-white' : 'bg-champagne-200 text-mulberry-950 border border-champagne-400'
+                                                        }`}>
+                                                            {ann.category}
+                                                        </span>
+                                                        <span class="text-[11px] text-slate-500 font-semibold">• Target: {ann.targetRole}</span>
+                                                    </div>
+
+                                                    <div class="text-[10px] text-slate-500 font-medium">
+                                                        Diterbitkan: {ann.createdAt} ({ann.author})
+                                                    </div>
+                                                </div>
+
+                                                <h3 class="font-extrabold text-mulberry-950 text-base">{ann.title}</h3>
+                                                <p class="text-xs text-slate-700 leading-relaxed font-medium whitespace-pre-line">{ann.content}</p>
+
+                                                {currentUser.role === 'manager' && (
+                                                    <div class="pt-2 border-t border-rosegold-100 flex items-center justify-end space-x-2">
+                                                        <button 
+                                                            onClick={() => handleTogglePinAnnouncement(ann.id)}
+                                                            class="bg-cream-100 hover:bg-cream-200 text-mulberry-900 border border-champagne-300 px-3 py-1 rounded-xl text-xs font-bold transition"
+                                                        >
+                                                            {ann.isPinned ? 'Unpin' : '📌 Pin Ke Atas'}
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => {
+                                                                setEditingAnnId(ann.id);
+                                                                setNewAnnForm({
+                                                                    title: ann.title,
+                                                                    category: ann.category,
+                                                                    content: ann.content,
+                                                                    priority: ann.priority || 'normal',
+                                                                    targetRole: ann.targetRole || 'Semua Pegawai',
+                                                                    isPinned: !!ann.isPinned
+                                                                });
+                                                            }}
+                                                            class="bg-blush-100 hover:bg-blush-200 text-mulberry-900 border border-rosegold-300 px-3 py-1 rounded-xl text-xs font-bold transition"
+                                                        >
+                                                            ✏️ Edit
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => handleDeleteAnnouncement(ann.id)}
+                                                            class="bg-mulberry-800 hover:bg-mulberry-900 text-champagne-200 px-3 py-1 rounded-xl text-xs font-bold transition shadow"
+                                                        >
+                                                            🗑️ Hapus
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ========================================================= */}
+                        {/* TAB 4: EMPLOYEE MANAGEMENT MENU (MANAGER ONLY)          */}
                         {/* ========================================================= */}
                         {activeTab === 'employees' && currentUser.role === 'manager' && (
                             <div class="space-y-6">
-                                <div class="bg-white p-6 rounded-3xl border border-rose-100 shadow-md space-y-6">
-                                    <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-4 border-rose-100 gap-2">
+                                <div class="bg-white p-6 rounded-3xl border border-rosegold-200 shadow-md space-y-6">
+                                    <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-4 border-rosegold-100 gap-2">
                                         <div>
-                                            <h3 class="font-extrabold text-slate-900 text-lg flex items-center space-x-2">
+                                            <h3 class="font-extrabold text-mulberry-950 text-lg flex items-center space-x-2">
                                                 <span>👥 Kelola Data & Jabatan Pegawai Klinik</span>
                                             </h3>
                                             <p class="text-xs text-slate-500">
-                                                Tambah pegawai baru atau hapus pegawai yang sudah tidak aktif. Username default untuk login pegawai baru adalah nama kecil pegawai dengan password <strong>admin123</strong>.
+                                                Tambah pegawai baru atau hapus pegawai yang sudah tidak aktif. Password login pegawai default: <strong>admin123</strong>.
                                             </p>
                                         </div>
-                                        <span class="bg-gradient-to-r from-rose-500 to-pink-600 text-white text-xs font-black px-3.5 py-1.5 rounded-xl shadow self-start sm:self-auto">
+                                        <span class="bg-gradient-to-r from-rosegold-500 to-mulberry-700 text-white text-xs font-black px-3.5 py-1.5 rounded-xl shadow self-start sm:self-auto border border-champagne-300/30">
                                             Total: {employees.length} Pegawai
                                         </span>
                                     </div>
 
-                                    {/* FORM TAMBAH PEGAWAI */}
-                                    <form onSubmit={handleAddEmployee} class="bg-gradient-to-r from-rose-50/50 via-slate-50 to-pink-50/40 p-5 rounded-2xl border border-rose-200 grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
+                                    <form onSubmit={handleAddEmployee} class="bg-gradient-to-r from-cream-50 via-blush-50 to-cream-100 p-5 rounded-2xl border border-rosegold-200 grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
                                         <div class="sm:col-span-2">
-                                            <label class="text-xs font-bold text-slate-700 block mb-1">
+                                            <label class="text-xs font-bold text-mulberry-950 block mb-1">
                                                 Nama Lengkap Pegawai
                                             </label>
                                             <input 
@@ -1585,18 +2105,18 @@
                                                 placeholder="Masukkan nama pegawai..."
                                                 value={newEmpForm.name}
                                                 onChange={(e) => setNewEmpForm(prev => ({ ...prev, name: e.target.value }))}
-                                                class="w-full border border-slate-300 rounded-xl p-2.5 text-xs font-medium bg-white focus:outline-none focus:ring-2 focus:ring-ayomi-400"
+                                                class="w-full border border-rosegold-300 rounded-xl p-2.5 text-xs font-medium bg-white focus:outline-none focus:ring-2 focus:ring-champagne-400 text-mulberry-950"
                                             />
                                         </div>
 
                                         <div>
-                                            <label class="text-xs font-bold text-slate-700 block mb-1">
+                                            <label class="text-xs font-bold text-mulberry-950 block mb-1">
                                                 Jabatan / Divisi
                                             </label>
                                             <select 
                                                 value={newEmpForm.role}
                                                 onChange={(e) => setNewEmpForm(prev => ({ ...prev, role: e.target.value }))}
-                                                class="w-full border border-slate-300 rounded-xl p-2.5 text-xs font-bold bg-white focus:outline-none focus:ring-2 focus:ring-ayomi-400"
+                                                class="w-full border border-rosegold-300 rounded-xl p-2.5 text-xs font-bold bg-white focus:outline-none focus:ring-2 focus:ring-champagne-400 text-mulberry-950"
                                             >
                                                 <option value="Admin">Admin Klinik</option>
                                                 <option value="Terapis">Terapis Beauty</option>
@@ -1609,7 +2129,7 @@
                                         <div>
                                             <button 
                                                 type="submit"
-                                                class="w-full bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-md shadow-rose-200 flex items-center justify-center space-x-1"
+                                                class="w-full bg-gradient-to-r from-rosegold-500 to-mulberry-700 hover:from-rosegold-600 hover:to-mulberry-800 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-md shadow-rosegold-200 flex items-center justify-center space-x-1 border border-champagne-300/30"
                                             >
                                                 <span>➕</span>
                                                 <span>Tambah Pegawai</span>
@@ -1617,11 +2137,10 @@
                                         </div>
                                     </form>
 
-                                    {/* LIST TABLE PEGAWAI */}
-                                    <div class="overflow-x-auto border border-rose-100 rounded-2xl shadow-sm">
+                                    <div class="overflow-x-auto border border-rosegold-200 rounded-2xl shadow-sm">
                                         <table class="w-full text-left text-xs border-collapse">
                                             <thead>
-                                                <tr class="bg-gradient-to-r from-slate-950 via-rose-950 to-purple-950 text-white font-bold uppercase tracking-wider">
+                                                <tr class="bg-gradient-to-r from-mulberry-950 via-mulberry-900 to-mulberry-950 text-champagne-200 font-bold uppercase tracking-wider">
                                                     <th class="p-3.5">ID</th>
                                                     <th class="p-3.5">Nama Pegawai</th>
                                                     <th class="p-3.5">Jabatan</th>
@@ -1630,16 +2149,16 @@
                                                     <th class="p-3.5 text-center">Aksi / Hapus</th>
                                                 </tr>
                                             </thead>
-                                            <tbody class="divide-y divide-rose-50 font-medium">
+                                            <tbody class="divide-y divide-rosegold-100 font-medium">
                                                 {employees.map(emp => (
-                                                    <tr key={emp.id} class="hover:bg-rose-50/50">
+                                                    <tr key={emp.id} class="hover:bg-blush-50/60">
                                                         <td class="p-3.5 font-mono text-slate-400 text-[11px]">{emp.id}</td>
-                                                        <td class="p-3.5 font-bold text-slate-800 text-sm">{emp.name}</td>
+                                                        <td class="p-3.5 font-bold text-mulberry-950 text-sm">{emp.name}</td>
                                                         <td class="p-3.5">
                                                             <span class={`px-3 py-1 rounded-full font-black text-[10px] ${
-                                                                emp.role === 'Admin' ? 'bg-purple-100 text-purple-800 border border-purple-200' :
-                                                                emp.role === 'Terapis' ? 'bg-pink-100 text-pink-800 border border-pink-200' :
-                                                                emp.role === 'OB' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-blue-100 text-blue-800 border border-blue-200'
+                                                                emp.role === 'Admin' ? 'bg-purple-100 text-purple-900 border border-purple-200' :
+                                                                emp.role === 'Terapis' ? 'bg-blush-100 text-mulberry-900 border border-rosegold-300' :
+                                                                emp.role === 'OB' ? 'bg-emerald-100 text-emerald-900 border border-emerald-200' : 'bg-champagne-100 text-mulberry-900 border border-champagne-300'
                                                             }`}>
                                                                 {emp.role}
                                                             </span>
@@ -1649,7 +2168,7 @@
                                                         <td class="p-3.5 text-center">
                                                             <button 
                                                                 onClick={() => setDeletingEmpId(emp.id)}
-                                                                class="bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold px-3 py-1 rounded-xl text-xs transition"
+                                                                class="bg-blush-50 hover:bg-blush-100 border border-rosegold-300 text-mulberry-800 font-bold px-3 py-1 rounded-xl text-xs transition"
                                                             >
                                                                 🗑️ Hapus
                                                             </button>
@@ -1664,22 +2183,22 @@
                         )}
 
                         {/* ========================================================= */}
-                        {/* TAB 4: RECAP & WORKING HOURS                             */}
+                        {/* TAB 5: RECAP & WORKING HOURS                             */}
                         {/* ========================================================= */}
                         {activeTab === 'recap' && (
                             <div class="space-y-6">
-                                <div class="bg-white p-6 rounded-3xl border border-rose-100 shadow-md">
-                                    <h3 class="font-extrabold text-slate-900 text-lg mb-2">
+                                <div class="bg-white p-6 rounded-3xl border border-rosegold-200 shadow-md">
+                                    <h3 class="font-extrabold text-mulberry-950 text-lg mb-2">
                                         📊 Rekapitulasi Jam Kerja & Jatah Libur ({MONTH_NAMES[month-1]} {year})
                                     </h3>
                                     <p class="text-xs text-slate-500 mb-4">
                                         Keterangan: Jam Efektif dihitung dari Total Jam Terjadwal dikurangi Durasi Istirahat Resmi (1 Jam per shift 8h, 2 Jam per Full Shift).
                                     </p>
 
-                                    <div class="overflow-x-auto rounded-2xl border border-rose-100 shadow-sm">
+                                    <div class="overflow-x-auto rounded-2xl border border-rosegold-200 shadow-sm">
                                         <table class="w-full text-left text-xs border-collapse">
                                             <thead>
-                                                <tr class="bg-gradient-to-r from-slate-950 via-rose-950 to-purple-950 text-white font-bold uppercase tracking-wider">
+                                                <tr class="bg-gradient-to-r from-mulberry-950 via-mulberry-900 to-mulberry-950 text-champagne-200 font-bold uppercase tracking-wider">
                                                     <th class="p-3.5">Nama Pegawai</th>
                                                     <th class="p-3.5">Jabatan</th>
                                                     <th class="p-3.5">Hari Kerja</th>
@@ -1693,29 +2212,29 @@
                                                     <th class="p-3.5">Tanggal Libur Pegawai</th>
                                                 </tr>
                                             </thead>
-                                            <tbody class="divide-y divide-rose-50 font-medium">
+                                            <tbody class="divide-y divide-rosegold-100 font-medium">
                                                 {recapData.map(r => (
-                                                    <tr key={r.name} class="hover:bg-rose-50/50">
-                                                        <td class="p-3.5 font-bold text-slate-800">{r.name}</td>
+                                                    <tr key={r.name} class={`hover:bg-blush-50/60 ${currentUser.role === 'employee' && currentUser.name === r.name ? 'bg-blush-100/70 font-bold' : ''}`}>
+                                                        <td class="p-3.5 font-bold text-mulberry-950">{r.name}</td>
                                                         <td class="p-3.5">
-                                                            <span class="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-lg font-bold text-[11px]">
+                                                            <span class="bg-cream-100 text-mulberry-900 px-2.5 py-1 rounded-lg font-bold text-[11px] border border-champagne-300">
                                                                 {r.role}
                                                             </span>
                                                         </td>
-                                                        <td class="p-3.5 font-semibold text-emerald-700">{r.totalWorkDays} Hari</td>
+                                                        <td class="p-3.5 font-semibold text-emerald-800">{r.totalWorkDays} Hari</td>
                                                         <td class="p-3.5">
-                                                            <span class={`font-bold px-2.5 py-1 rounded-lg ${r.totalOffDays === 2 ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-rose-100 text-rose-800 border border-rose-200'}`}>
+                                                            <span class={`font-bold px-2.5 py-1 rounded-lg ${r.totalOffDays === 2 ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' : 'bg-blush-100 text-mulberry-900 border border-rosegold-300'}`}>
                                                                 {r.totalOffDays} Hari
                                                             </span>
                                                         </td>
                                                         <td class="p-3.5">{r.pagiCount}</td>
                                                         <td class="p-3.5">{r.siangCount}</td>
                                                         <td class="p-3.5">{r.fullShiftCount}</td>
-                                                        <td class="p-3.5 font-bold text-slate-800">{r.totalHours} Jam</td>
+                                                        <td class="p-3.5 font-bold text-mulberry-950">{r.totalHours} Jam</td>
                                                         <td class="p-3.5 text-slate-500">{r.breakHours} Jam</td>
-                                                        <td class="p-3.5 font-black text-rose-700">{r.effectiveHours} Jam</td>
+                                                        <td class="p-3.5 font-black text-mulberry-700">{r.effectiveHours} Jam</td>
                                                         <td class="p-3.5 text-[11px] text-slate-600">
-                                                            {r.offDatesList.join(' | ')}
+                                                            {r.offDatesList.join(' | ') || '-'}
                                                         </td>
                                                     </tr>
                                                 ))}
@@ -1727,12 +2246,12 @@
                         )}
 
                         {/* ========================================================= */}
-                        {/* TAB 5: CALENDAR & HOLIDAYS (MANAGER ONLY)                */}
+                        {/* TAB 6: CALENDAR & HOLIDAYS (MANAGER ONLY)                */}
                         {/* ========================================================= */}
                         {activeTab === 'calendar' && currentUser.role === 'manager' && (
                             <div class="space-y-6">
-                                <div class="bg-white p-6 rounded-3xl border border-rose-100 shadow-md">
-                                    <h3 class="font-bold text-slate-800 text-lg mb-2">
+                                <div class="bg-white p-6 rounded-3xl border border-rosegold-200 shadow-md">
+                                    <h3 class="font-bold text-mulberry-950 text-lg mb-2">
                                         ⚙️ Pengaturan Kalender, Hari Besar & Closure Policy
                                     </h3>
                                     <p class="text-xs text-slate-500 mb-4">
@@ -1740,37 +2259,36 @@
                                     </p>
 
                                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        {/* Event Form */}
-                                        <div class="bg-gradient-to-r from-rose-50/50 to-pink-50/40 p-5 rounded-2xl border border-rose-200 space-y-3">
-                                            <h4 class="font-bold text-slate-700 text-sm">Tambah / Edit Tanggal Khusus</h4>
+                                        <div class="bg-gradient-to-r from-cream-50 to-blush-50 p-5 rounded-2xl border border-rosegold-200 space-y-3">
+                                            <h4 class="font-bold text-mulberry-950 text-sm">Tambah / Edit Tanggal Khusus</h4>
                                             
                                             <div>
-                                                <label class="text-xs font-semibold text-slate-600 block mb-1">Tanggal Khusus</label>
+                                                <label class="text-xs font-semibold text-mulberry-950 block mb-1">Tanggal Khusus</label>
                                                 <input 
                                                     type="date"
                                                     value={editingEvent?.dateStr || `${year}-${String(month).padStart(2,'0')}-15`}
                                                     onChange={(e) => setEditingEvent(prev => ({ ...prev, dateStr: e.target.value }))}
-                                                    class="w-full border border-slate-300 rounded-xl p-2.5 text-xs bg-white font-medium"
+                                                    class="w-full border border-rosegold-300 rounded-xl p-2.5 text-xs bg-white font-medium text-mulberry-950"
                                                 />
                                             </div>
 
                                             <div>
-                                                <label class="text-xs font-semibold text-slate-600 block mb-1">Nama Hari Besar / Keterangan</label>
+                                                <label class="text-xs font-semibold text-mulberry-950 block mb-1">Nama Hari Besar / Keterangan</label>
                                                 <input 
                                                     type="text"
                                                     placeholder="Contoh: Maintenance Alat / Hari Besar Islam"
                                                     value={editingEvent?.title || ''}
                                                     onChange={(e) => setEditingEvent(prev => ({ ...prev, title: e.target.value }))}
-                                                    class="w-full border border-slate-300 rounded-xl p-2.5 text-xs bg-white font-medium"
+                                                    class="w-full border border-rosegold-300 rounded-xl p-2.5 text-xs bg-white font-medium text-mulberry-950"
                                                 />
                                             </div>
 
                                             <div>
-                                                <label class="text-xs font-semibold text-slate-600 block mb-1">Kategori Hari Besar</label>
+                                                <label class="text-xs font-semibold text-mulberry-950 block mb-1">Kategori Hari Besar</label>
                                                 <select 
                                                     value={editingEvent?.type || 'Hari Libur Nasional'}
                                                     onChange={(e) => setEditingEvent(prev => ({ ...prev, type: e.target.value }))}
-                                                    class="w-full border border-slate-300 rounded-xl p-2.5 text-xs bg-white font-bold"
+                                                    class="w-full border border-rosegold-300 rounded-xl p-2.5 text-xs bg-white font-bold text-mulberry-950"
                                                 >
                                                     <option value="Hari Besar Keagamaan Islam">Hari Besar Keagamaan Islam</option>
                                                     <option value="Hari Besar Keagamaan Kristen">Hari Besar Keagamaan Kristen</option>
@@ -1781,12 +2299,12 @@
                                             </div>
 
                                             <div class="flex items-center space-x-3 py-2">
-                                                <label class="text-xs font-semibold text-slate-600">Status Operasional Klinik:</label>
+                                                <label class="text-xs font-semibold text-mulberry-950">Status Operasional Klinik:</label>
                                                 <button
                                                     type="button"
                                                     onClick={() => setEditingEvent(prev => ({ ...prev, isOpen: !prev?.isOpen }))}
                                                     class={`px-3.5 py-1.5 rounded-xl text-xs font-bold shadow ${
-                                                        editingEvent?.isOpen !== false ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'
+                                                        editingEvent?.isOpen !== false ? 'bg-emerald-600 text-white' : 'bg-mulberry-800 text-white'
                                                     }`}
                                                 >
                                                     {editingEvent?.isOpen !== false ? 'KLINIK BUKA' : 'KLINIK TUTUP'}
@@ -1799,41 +2317,44 @@
                                                         triggerToast("Lengkapi tanggal dan nama hari besar.", "error");
                                                         return;
                                                     }
-                                                    setCalendarEvents(prev => ({
-                                                        ...prev,
-                                                        [editingEvent.dateStr]: {
-                                                            title: editingEvent.title,
-                                                            type: editingEvent.type,
-                                                            isOpen: editingEvent.isOpen !== false,
-                                                            closurePolicy: editingEvent.closurePolicy || 'COUNT_AS_OFF',
-                                                            note: editingEvent.title
-                                                        }
-                                                    }));
+                                                    setCalendarEvents(prev => {
+                                                        const updated = {
+                                                            ...prev,
+                                                            [editingEvent.dateStr]: {
+                                                                title: editingEvent.title,
+                                                                type: editingEvent.type,
+                                                                isOpen: editingEvent.isOpen !== false,
+                                                                closurePolicy: editingEvent.closurePolicy || 'COUNT_AS_OFF',
+                                                                note: editingEvent.title
+                                                            }
+                                                        };
+                                                        broadcastSync('UPDATE_CALENDAR', updated);
+                                                        return updated;
+                                                    });
                                                     logAction("Update Kalender", `Mengatur tanggal ${editingEvent.dateStr} sebagai ${editingEvent.title}`);
                                                     triggerToast("Kalender hari besar berhasil diperbarui!", "success");
                                                     setEditingEvent(null);
                                                 }}
-                                                class="w-full bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-md shadow-rose-200"
+                                                class="w-full bg-gradient-to-r from-rosegold-500 to-mulberry-700 hover:from-rosegold-600 hover:to-mulberry-800 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-md border border-champagne-300/30"
                                             >
                                                 Simpan Tanggal Khusus
                                             </button>
                                         </div>
 
-                                        {/* Event List */}
                                         <div class="space-y-3">
-                                            <h4 class="font-bold text-slate-700 text-sm">Daftar Tanggal Khusus Terdaftar</h4>
+                                            <h4 class="font-bold text-mulberry-950 text-sm">Daftar Tanggal Khusus Terdaftar</h4>
                                             
                                             <div class="space-y-2">
                                                 {Object.keys(calendarEvents).map(dateKey => {
                                                     const ev = calendarEvents[dateKey];
                                                     return (
-                                                        <div key={dateKey} class="p-3.5 bg-white border border-rose-100 rounded-2xl flex items-center justify-between shadow-sm">
+                                                        <div key={dateKey} class="p-3.5 bg-white border border-rosegold-200 rounded-2xl flex items-center justify-between shadow-sm">
                                                             <div>
-                                                                <div class="font-bold text-sm text-slate-800">{dateKey} — {ev.title}</div>
+                                                                <div class="font-bold text-sm text-mulberry-950">{dateKey} — {ev.title}</div>
                                                                 <div class="text-xs text-slate-500">{ev.type}</div>
                                                             </div>
                                                             <div class="flex items-center space-x-2">
-                                                                <span class={`text-[10px] px-2.5 py-1 rounded-lg font-bold ${ev.isOpen ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-rose-100 text-rose-800 border border-rose-200'}`}>
+                                                                <span class={`text-[10px] px-2.5 py-1 rounded-lg font-bold ${ev.isOpen ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' : 'bg-blush-100 text-mulberry-900 border border-rosegold-300'}`}>
                                                                     {ev.isOpen ? 'BUKA' : 'TUTUP'}
                                                                 </span>
                                                                 <button 
@@ -1841,9 +2362,10 @@
                                                                         const copy = { ...calendarEvents };
                                                                         delete copy[dateKey];
                                                                         setCalendarEvents(copy);
+                                                                        broadcastSync('UPDATE_CALENDAR', copy);
                                                                         logAction("Hapus Tanggal", `Hapus tanggal khusus ${dateKey}`);
                                                                     }}
-                                                                    class="text-xs text-rose-600 hover:text-rose-800 font-bold px-2 py-1"
+                                                                    class="text-xs text-mulberry-700 hover:text-mulberry-900 font-bold px-2 py-1"
                                                                 >
                                                                     Hapus
                                                                 </button>
@@ -1859,34 +2381,34 @@
                         )}
 
                         {/* ========================================================= */}
-                        {/* TAB 6: AUDIT TRAIL LOGS (MANAGER ONLY)                   */}
+                        {/* TAB 7: AUDIT TRAIL LOGS (MANAGER ONLY)                   */}
                         {/* ========================================================= */}
                         {activeTab === 'audit' && currentUser.role === 'manager' && (
-                            <div class="bg-white p-6 rounded-3xl border border-rose-100 shadow-md space-y-4">
-                                <h3 class="font-extrabold text-slate-900 text-lg mb-2">
+                            <div class="bg-white p-6 rounded-3xl border border-rosegold-200 shadow-md space-y-4">
+                                <h3 class="font-extrabold text-mulberry-950 text-lg mb-2">
                                     📜 Riwayat Perubahan & Audit Trail System
                                 </h3>
                                 <p class="text-xs text-slate-500 mb-4">
-                                    Mencatat seluruh aksi pengubahan jadwal, kalender, dan publikasi oleh pengguna.
+                                    Mencatat seluruh aksi pengubahan jadwal, pengumuman, kalender, dan publikasi oleh pengguna.
                                 </p>
 
-                                <div class="overflow-x-auto rounded-2xl border border-rose-100 shadow-sm">
+                                <div class="overflow-x-auto rounded-2xl border border-rosegold-200 shadow-sm">
                                     <table class="w-full text-left text-xs border-collapse">
                                         <thead>
-                                            <tr class="bg-gradient-to-r from-slate-950 via-rose-950 to-purple-950 text-white font-bold uppercase tracking-wider">
+                                            <tr class="bg-gradient-to-r from-mulberry-950 via-mulberry-900 to-mulberry-950 text-champagne-200 font-bold uppercase tracking-wider">
                                                 <th class="p-3.5">Waktu (Timestamp)</th>
                                                 <th class="p-3.5">Pengguna</th>
                                                 <th class="p-3.5">Jenis Aksi</th>
                                                 <th class="p-3.5">Detail Perubahan</th>
                                             </tr>
                                         </thead>
-                                        <tbody class="divide-y divide-rose-50">
+                                        <tbody class="divide-y divide-rosegold-100">
                                             {auditLogs.map((log, index) => (
-                                                <tr key={index} class="hover:bg-rose-50/50">
+                                                <tr key={index} class="hover:bg-blush-50/60">
                                                     <td class="p-3.5 font-mono text-slate-600">{log.timestamp}</td>
-                                                    <td class="p-3.5 font-semibold text-slate-800">{log.user}</td>
+                                                    <td class="p-3.5 font-semibold text-mulberry-950">{log.user}</td>
                                                     <td class="p-3.5">
-                                                        <span class="bg-blue-100 text-blue-800 border border-blue-200 font-bold px-2.5 py-1 rounded-lg text-[10px]">
+                                                        <span class="bg-champagne-100 text-mulberry-900 border border-champagne-300 font-bold px-2.5 py-1 rounded-lg text-[10px]">
                                                             {log.action}
                                                         </span>
                                                     </td>
@@ -1901,143 +2423,119 @@
 
                     </main>
 
+                    {/* EDIT SINGLE DATE ROW MODAL FOR MANAGER */}
+                    {editingDateRow && (
+                        <div class="fixed inset-0 bg-mulberry-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                            <div class="bg-cream-50 rounded-3xl shadow-2xl max-w-lg w-full p-6 space-y-4 border border-rosegold-300 max-h-[90vh] overflow-y-auto">
+                                <div class="flex items-center justify-between border-b border-rosegold-200 pb-3">
+                                    <h3 class="font-bold text-mulberry-950 text-base flex items-center space-x-2">
+                                        <span>✏️ Edit Jadwal Tanggal: {editingDateRow}</span>
+                                    </h3>
+                                    <button onClick={() => setEditingDateRow(null)} class="text-slate-400 hover:text-mulberry-900 text-lg font-bold">✕</button>
+                                </div>
+
+                                <div class="space-y-3">
+                                    <div class="flex items-center justify-between bg-blush-100/70 p-3 rounded-2xl border border-rosegold-200">
+                                        <span class="text-xs font-bold text-mulberry-950">Status Operasional Tanggal Ini:</span>
+                                        <button 
+                                            type="button"
+                                            onClick={() => {
+                                                const isCurrentlyClosed = schedule[editingDateRow]?.status === 'CLOSED';
+                                                const newStatus = isCurrentlyClosed ? 'OPEN' : 'CLOSED';
+                                                const newAssignments = { ...(schedule[editingDateRow]?.assignments || {}) };
+                                                if (newStatus === 'CLOSED') {
+                                                    employees.forEach(e => newAssignments[e.name] = 'KLINIK TUTUP');
+                                                }
+                                                const updatedSchedule = {
+                                                    ...schedule,
+                                                    [editingDateRow]: {
+                                                        ...schedule[editingDateRow],
+                                                        status: newStatus,
+                                                        assignments: newAssignments
+                                                    }
+                                                };
+                                                updateActiveSchedule(updatedSchedule, false, lastPublishedAt);
+                                            }}
+                                            class={`px-3 py-1 rounded-xl text-xs font-bold shadow ${
+                                                schedule[editingDateRow]?.status === 'CLOSED' ? 'bg-mulberry-800 text-champagne-200' : 'bg-emerald-600 text-white'
+                                            }`}
+                                        >
+                                            {schedule[editingDateRow]?.status === 'CLOSED' ? 'KLINIK TUTUP' : 'KLINIK BUKA'}
+                                        </button>
+                                    </div>
+
+                                    <div class="divide-y divide-rosegold-100">
+                                        {employees.map(emp => (
+                                            <div key={emp.id} class="py-2.5 flex items-center justify-between text-xs">
+                                                <div>
+                                                    <span class="font-bold text-mulberry-950">{emp.name}</span>
+                                                    <span class="text-[10px] text-mulberry-700 bg-blush-100 px-2 py-0.5 rounded-md ml-2 font-semibold">{emp.role}</span>
+                                                </div>
+                                                <select 
+                                                    value={schedule[editingDateRow]?.assignments[emp.name] || 'Pagi'}
+                                                    onChange={(e) => handleCellEdit(editingDateRow, emp.name, e.target.value)}
+                                                    disabled={isPublished}
+                                                    class="border border-rosegold-300 rounded-xl px-2.5 py-1 text-xs bg-white font-bold text-mulberry-950 focus:ring-2 focus:ring-rosegold-400"
+                                                >
+                                                    <option value="Pagi">Pagi (08:00–16:00)</option>
+                                                    <option value="Siang">Siang (13:00–21:00)</option>
+                                                    <option value="Full Shift">Full Shift (08:00–08:00)</option>
+                                                    <option value="OB">OB Shift (07:30–15:30)</option>
+                                                    <option value="Libur">Libur (Off)</option>
+                                                    <option value="KLINIK TUTUP">Klinik Tutup</option>
+                                                </select>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div class="pt-3 border-t border-rosegold-200 flex justify-end">
+                                    <button 
+                                        onClick={() => setEditingDateRow(null)}
+                                        class="bg-gradient-to-r from-rosegold-500 to-mulberry-700 text-white font-bold px-5 py-2 rounded-xl text-xs shadow border border-champagne-300/30"
+                                    >
+                                        Selesai & Tutup
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* CONFIRMATION DELETE EMPLOYEE MODAL */}
                     {deletingEmpId && (
-                        <div class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                            <div class="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 space-y-4 text-center border border-rose-100">
+                        <div class="fixed inset-0 bg-mulberry-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                            <div class="bg-cream-50 rounded-3xl shadow-2xl max-w-sm w-full p-6 space-y-4 text-center border border-rosegold-300">
                                 <div class="text-3xl">⚠️</div>
-                                <h3 class="text-base font-extrabold text-slate-900">
+                                <h3 class="text-base font-extrabold text-mulberry-950">
                                     Hapus Pegawai Ini?
                                 </h3>
-                                <p class="text-xs text-slate-600">
-                                    Apakah Anda yakin ingin menghapus <strong>{employees.find(e => e.id === deletingEmpId)?.name}</strong>? Tindakan ini akan menghapus akun login dan memperbarui daftar roster.
+                                <p class="text-xs text-mulberry-800 font-medium">
+                                    Apakah Anda yakin ingin menghapus <strong>{employees.find(e => e.id === deletingEmpId)?.name}</strong>? Tindakan ini akan menghapus akun login pegawai dan memperbarui daftar roster.
                                 </p>
-                                <div class="flex items-center space-x-2 pt-2">
+                                <div class="flex items-center justify-center space-x-3 pt-2">
                                     <button 
                                         onClick={() => setDeletingEmpId(null)}
-                                        class="w-1/2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl text-xs transition"
+                                        class="bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold px-4 py-2 rounded-xl text-xs transition"
                                     >
                                         Batal
                                     </button>
                                     <button 
                                         onClick={() => handleDeleteEmployee(deletingEmpId)}
-                                        class="w-1/2 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-md shadow-rose-200"
+                                        class="bg-gradient-to-r from-mulberry-700 to-mulberry-900 hover:from-mulberry-800 hover:to-mulberry-950 text-white font-bold px-4 py-2 rounded-xl text-xs transition shadow border border-champagne-300/30"
                                     >
-                                        Ya, Hapus
+                                        Ya, Hapus Pegawai
                                     </button>
                                 </div>
                             </div>
                         </div>
                     )}
 
-                    {/* MANAGER MANUAL OFF-DAY & SHIFT EDITOR MODAL FOR SPECIFIC DATE */}
-                    {editingDateRow && (
-                        <div class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                            <div class="bg-white rounded-3xl shadow-2xl max-w-xl w-full p-6 space-y-5 border border-rose-100">
-                                <div class="flex items-center justify-between border-b pb-3 border-rose-100">
-                                    <div>
-                                        <h3 class="text-lg font-extrabold text-slate-900">
-                                            ✏️ Edit Penentuan Shift & Hari Libur Manual
-                                        </h3>
-                                        <p class="text-xs text-slate-500">
-                                            Tanggal: <strong class="text-rose-700">{editingDateRow}</strong>
-                                        </p>
-                                    </div>
-                                    <button 
-                                        onClick={() => setEditingDateRow(null)}
-                                        class="text-slate-400 hover:text-slate-600 font-bold text-xl px-2"
-                                    >
-                                        ✕
-                                    </button>
-                                </div>
-
-                                <div class="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
-                                    {employees.map(emp => {
-                                        const currentShift = schedule[editingDateRow]?.assignments[emp.name] || 'Pagi';
-                                        return (
-                                            <div key={emp.name} class="p-3.5 bg-rose-50/40 border border-rose-100 rounded-2xl flex items-center justify-between">
-                                                <div>
-                                                    <div class="font-bold text-sm text-slate-800">{emp.name}</div>
-                                                    <div class="text-xs text-slate-500">{emp.role}</div>
-                                                </div>
-
-                                                <div class="flex items-center space-x-2">
-                                                    <select
-                                                        value={currentShift}
-                                                        onChange={(e) => handleCellEdit(editingDateRow, emp.name, e.target.value)}
-                                                        class={`px-3 py-1.5 rounded-xl text-xs font-bold border shadow-sm ${
-                                                            currentShift === 'Libur' ? 'bg-rose-100 text-rose-800 border-rose-300' :
-                                                            currentShift === 'Pagi' ? 'bg-blue-100 text-blue-800 border-blue-300' :
-                                                            currentShift === 'Siang' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
-                                                            currentShift === 'Full Shift' ? 'bg-purple-100 text-purple-800 border-purple-300' :
-                                                            'bg-indigo-100 text-indigo-800 border-indigo-300'
-                                                        }`}
-                                                    >
-                                                        <option value="Pagi">Shift Pagi (08.00–16.00)</option>
-                                                        <option value="Siang">Shift Siang (13.00–21.00)</option>
-                                                        <option value="Full Shift">Full Shift Admin (08.00–21.00)</option>
-                                                        <option value="OB">Shift OB (07.00–15.00)</option>
-                                                        <option value="Libur">🌴 LIBUR (Hari Libur Pegawai)</option>
-                                                    </select>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-
-                                <div class="pt-3 border-t border-rose-100 flex justify-end">
-                                    <button 
-                                        onClick={() => setEditingDateRow(null)}
-                                        class="bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white font-bold px-6 py-2.5 rounded-xl text-xs transition shadow-md shadow-rose-200"
-                                    >
-                                        Selesai & Simpan Perubahan
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
                 </div>
             );
         }
 
-        // ==========================================
-        // VIBRANT SHIFT BADGE SUB-COMPONENT
-        // ==========================================
-        function ShiftBadge({ name, shift, onEdit }) {
-            const shiftStyles = {
-                'Pagi': 'bg-gradient-to-r from-rosegold-400 to-rosegold-500 text-white shadow-sm font-bold border border-champagne-200/40',
-                'Siang': 'bg-gradient-to-r from-mulberry-700 to-mulberry-800 text-champagne-100 shadow-sm font-bold border border-champagne-400/30',
-                'Full Shift': 'bg-gradient-to-r from-champagne-500 via-rosegold-500 to-mulberry-700 text-white shadow-sm font-extrabold border border-champagne-300',
-                'OB': 'bg-gradient-to-r from-champagne-400 to-rosegold-400 text-mulberry-950 shadow-sm font-bold border border-champagne-300',
-                'Libur': 'bg-blush-100 text-mulberry-900 border border-rosegold-300 font-extrabold'
-            };
-
-            const style = shiftStyles[shift] || 'bg-cream-100 text-mulberry-900 border border-champagne-300';
-
-            return (
-                <div class="inline-flex items-center space-x-1 group relative my-0.5">
-                    <span class={`px-2.5 py-1 rounded-lg text-[11px] ${style}`}>
-                        {name} ({shift})
-                    </span>
-
-                    {onEdit && (
-                        <select 
-                            value={shift}
-                            onChange={(e) => onEdit(e.target.value)}
-                            class="opacity-0 group-hover:opacity-100 absolute inset-0 w-full h-full cursor-pointer bg-white text-[10px] font-bold border border-slate-400 rounded-lg shadow"
-                        >
-                            <option value="Pagi">Pagi</option>
-                            <option value="Siang">Siang</option>
-                            <option value="Full Shift">Full Shift</option>
-                            <option value="Libur">Libur</option>
-                        </select>
-                    )}
-                </div>
-            );
-        }
-
-        // RENDER TO DOM
-        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
     </script>
 </body>
 </html>
